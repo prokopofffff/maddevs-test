@@ -1,6 +1,6 @@
 # Промпт для Claude Design
 
-Решение — D-025. Результат кладём в `docs/design/template.html`; из него берутся токены и CSS для фронтенда.
+Решение — D-025. Результат кладём в `docs/design/template.html`; из него берутся токены и CSS для фронтенда. Claude Design отдал бандл с JS, поэтому шаблон собирается из экспорта `docs/design/claude-design-export.html` скриптом `docs/design/unbundle.py` (D-027).
 
 ---
 
