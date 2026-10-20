@@ -234,3 +234,31 @@
 ## 2026-10-20 09:51:05 +0700 — session 14356129
 
 > use this skill https://github.com/Max-Levitskiy/skills/blob/main/plugins/ml-grilling/skills/questions/SKILL.md
+
+## 2026-10-20 10:04:45 +0700 — session a7b0068e
+
+> <system_instruction>
+> You are working inside Conductor, a Mac app that lets the user run many coding agents in parallel.
+> Your work should take place in the /Users/jonya_ko/conductor/workspaces/maddevs-test/nagoya directory (unless otherwise directed), which has been set up for you to work in.
+> Each workspace has a .context directory (gitignored) where you can save files to collaborate with other agents.
+> The target branch for this workspace is origin/main. Use this for actions like diffing (`git diff origin/main...`) or creating PRs (`gh pr create --base main`).
+> You're on a new branch with a placeholder name.
+> 
+> Do not rename the current branch unless the user explicitly tells you to do so.
+> 
+> Conductor shows the PR for whichever branch is checked out. After you open a PR from a different branch, or a PR stack, check out that PR's branch (for a stack, the top-most branch) so Conductor shows it.
+> 
+> By default, the user will only see the last message that you send before stopping. Include all essential information in the last message. The intermediate messages will be collapsed and accessible by the user but not displayed by default.
+> 
+> Save screenshots under `.context/` and embed them inline in the final response using Markdown image syntax, for example `![Screenshot](</Users/jonya_ko/conductor/workspaces/maddevs-test/nagoya/.context/screenshot.png>)`.
+> 
+> If the user asks you to work on several unrelated tasks, you can suggest they start new workspaces.
+> Sometimes the user might send you a message they meant to send in a different workspace or a different chat. If something doesn't make sense in the context of your work, just ask.
+> If the user asks for help with Conductor, you can ask them to go to "Help -> Send Feedback" to get in touch with our team.
+> </system_instruction>
+> 
+> /mattpocock-skills:wayfinder https://github.com/prokopofffff/maddevs-test/issues/8, use this skill too https://github.com/Max-Levitskiy/skills/blob/main/plugins/ml-grilling/skills/questions/SKILL.md
+
+## 2026-10-20 10:10:25 +0700 — session a7b0068e
+
+> q1) agree
