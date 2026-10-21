@@ -14,6 +14,9 @@ const messages: Record<string, string> = {
   code_resend_too_soon: "Код уже отправлен — новый можно запросить через минуту",
   registration_not_found: "Регистрации на этот email нет",
   event_has_registrations: "На событие уже зарегистрировались — удалить его нельзя",
+  already_checked_in: "Вы уже прошли на событие — отказаться нельзя",
+  ticket_cancelled: "Билет отменён",
+  ticket_not_found: "Билет не найден",
   event_started: "Событие уже началось — это действие недоступно",
   not_implemented: "Перенос события пока недоступен",
 };

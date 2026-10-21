@@ -5,8 +5,11 @@ import { meKey, useMe } from "../session.ts";
 import { Brand } from "./Brand.tsx";
 import { PageSkeleton } from "./Skeleton.tsx";
 
-/** Кабинет организатора: без сессии — на вход, с ролью поддержки — к себе. */
-export function OrganizerLayout() {
+/**
+ * Кабинет организатора: без сессии — на вход, с ролью поддержки — к себе.
+ * `bare` — без шапки: экран чекина на входе занимает всё окно (S9).
+ */
+export function OrganizerLayout({ bare = false }: { bare?: boolean }) {
   const me = useMe();
   const location = useLocation();
   const navigate = useNavigate();
@@ -23,6 +26,7 @@ export function OrganizerLayout() {
   if (me.isPending) return <PageSkeleton label="Загрузка кабинета" />;
   if (me.isError || !me.data) return <Navigate to={`/login?next=${encodeURIComponent(location.pathname)}`} replace />;
   if (me.data.role !== "organizer") return <Navigate to="/support" replace />;
+  if (bare) return <Outlet />;
 
   return (
     <>

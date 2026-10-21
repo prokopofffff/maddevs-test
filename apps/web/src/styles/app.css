@@ -25,3 +25,6 @@ button.back-link { padding: 0; border: 0; background: none; font: inherit; font-
 .warn-mark { align-self: flex-start; padding: 2px var(--space-2); border-radius: var(--radius-sm); background: var(--color-warning); font-size: var(--font-size-sm); font-weight: var(--font-weight-bold); }
 .warn-mark--inline { margin-left: var(--space-2); }
 .stat__bar-fill--over { background: var(--color-warning); }
+
+/* Экран чекина: у `.checkin` шаблона `min-height`, и сетка растягивает строки — при коротком исходе поле кода съезжает вниз. */
+.checkin { align-content: start; }

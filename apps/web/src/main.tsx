@@ -13,6 +13,7 @@ import { createBrowserRouter, Navigate, RouterProvider } from "react-router";
 import { ApiError } from "./api.ts";
 import { OrganizerLayout } from "./components/OrganizerLayout.tsx";
 import { AuthPage } from "./pages/AuthPage.tsx";
+import { CheckinPage } from "./pages/CheckinPage.tsx";
 import { EventAdminPage } from "./pages/EventAdminPage.tsx";
 import { EventFormPage } from "./pages/EventFormPage.tsx";
 import { MyEventsPage } from "./pages/MyEventsPage.tsx";
@@ -44,6 +45,12 @@ const router = createBrowserRouter([
       { path: "events/:id", element: <EventAdminPage /> },
       { path: "events/:id/edit", element: <EventFormPage key="edit" /> },
     ],
+  },
+  // Экран входа — без шапки кабинета, только для владельца события (S9).
+  {
+    path: "/organizer/events/:id/checkin",
+    element: <OrganizerLayout bare />,
+    children: [{ index: true, element: <CheckinPage /> }],
   },
   { path: "*", element: <NotFoundPage /> },
 ]);

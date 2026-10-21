@@ -13,8 +13,8 @@ import { ParticipantList } from "./admin/ParticipantList.tsx";
 import { NotFoundPage } from "./NotFoundPage.tsx";
 
 /**
- * S8-EventAdmin: плашки, ссылка для участников, список участников с фильтром, «Редактировать».
- * Данные — при загрузке; live, «Снять отметку» и «Открыть чекин» приходят своими тикетами.
+ * S8-EventAdmin: плашки, ссылка для участников, список участников с фильтром, «Редактировать», «Открыть чекин».
+ * Данные — при загрузке; live и «Снять отметку» приходят своими тикетами.
  */
 export function EventAdminPage() {
   const { id = "" } = useParams();
@@ -64,6 +64,9 @@ export function EventAdminPage() {
         <div className="page-header__actions">
           <Link className="button button--secondary" to={`/organizer/events/${e.id}/edit`}>
             Редактировать
+          </Link>
+          <Link className="button button--primary" to={`/organizer/events/${e.id}/checkin`}>
+            Открыть чекин
           </Link>
         </div>
       </div>

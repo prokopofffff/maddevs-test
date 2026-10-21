@@ -31,6 +31,12 @@ const paths = {
       <path d="M3.5 6l6.5 5 6.5-5" />
     </>
   ),
+  warning: (
+    <>
+      <path d="M10 3.2l7.6 13.3H2.4z" />
+      <path d="M10 8.2v3.6M10 14.2v.1" />
+    </>
+  ),
   plus: <path d="M10 4v12M4 10h12" />,
   chevronRight: <path d="M8 5l5 5-5 5" />,
   chevronDown: <path d="M5 8l5 5 5-5" />,

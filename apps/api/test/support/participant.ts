@@ -52,6 +52,13 @@ export async function register(t: TestApp, eventId: string, data: Record<string,
   return confirmCode(t.client(), verificationId, code);
 }
 
+/** Подтверждённая регистрация и её код билета — со страницы по личной ссылке. */
+export async function confirmedTicket(t: TestApp, eventId: string, data: Record<string, unknown> = participant()) {
+  const { token } = (await register(t, eventId, data)).body;
+  const page = (await t.client().get(`/api/registrations/${token}`)).body;
+  return { token: token as string, ticketCode: page.ticketCode as string };
+}
+
 /** Отказ по личной ссылке: кнопка «Отказаться» после диалога. */
 export function cancel(client: Client, token: string) {
   return client.post(`/api/registrations/${token}/cancel`);

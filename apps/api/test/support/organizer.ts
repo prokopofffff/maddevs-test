@@ -17,3 +17,11 @@ export const eventInput = (overrides: Record<string, unknown> = {}) => ({
   limit: 50,
   ...overrides,
 });
+
+/** Карточка билета на входе: код — как его набрал организатор. */
+export const ticketCard = (organizer: Client, eventId: string, code: string) =>
+  organizer.get(`/api/organizer/events/${eventId}/tickets/${encodeURIComponent(code)}`);
+
+/** Отметка «Пропустить» на экране чекина. */
+export const checkin = (organizer: Client, eventId: string, code: string) =>
+  organizer.post(`/api/organizer/events/${eventId}/checkin`, { code });

@@ -10,7 +10,7 @@ import { PageSkeleton } from "../components/Skeleton.tsx";
 import { StatusBadge } from "../components/StatusBadge.tsx";
 import { Ticket } from "../components/Ticket.tsx";
 import { errorText } from "../errors.ts";
-import { formatDate, formatEventTime } from "../format.ts";
+import { formatClock, formatDate, formatEventTime } from "../format.ts";
 import { registrationKey, useRegistration } from "./event/RegistrationResult.tsx";
 import { NotFoundPage } from "./NotFoundPage.tsx";
 
@@ -21,8 +21,8 @@ const dialogText = {
 };
 
 /**
- * S4-MyReg: регистрация по личной ссылке — билет (s4a), номер в листе ожидания (s4b) или отказ (s4c)
- * и данные участника. Открытие ссылки ничего не меняет: отказ — только кнопкой и диалогом (s4e).
+ * S4-MyReg: регистрация по личной ссылке — билет (s4a), номер в листе ожидания (s4b), отказ (s4c)
+ * или «Пришёл» (s4d) и данные участника. Открытие ссылки ничего не меняет: отказ — только кнопкой и диалогом (s4e).
  * Заявка на исправление приходит своим тикетом.
  */
 export function MyRegistrationPage() {
@@ -42,6 +42,9 @@ export function MyRegistrationPage() {
   });
 
   if (registration.isPending) return <PageSkeleton label="Загрузка регистрации" />;
+  // Время чекина — на часах пояса события (D-015).
+  const arrivedAt =
+    registration.data?.checkedInAt && formatClock(registration.data.checkedInAt, registration.data.event.timezone);
   if (registration.error instanceof ApiError && registration.error.status === 404) return <NotFoundPage />;
 
   return (
@@ -61,7 +64,14 @@ export function MyRegistrationPage() {
               </p>
             </header>
             <div className="stack">
-              <StatusBadge status={registration.data.status} position={registration.data.waitlistPosition} />
+              {arrivedAt ? (
+                <span className="badge badge--arrived">
+                  <Icon name="check" />
+                  Пришёл {arrivedAt}
+                </span>
+              ) : (
+                <StatusBadge status={registration.data.status} position={registration.data.waitlistPosition} />
+              )}
               {registration.data.status === "cancelled" && (
                 <>
                   <p className="heading heading--section">Регистрация отменена</p>
@@ -78,7 +88,17 @@ export function MyRegistrationPage() {
                   Вы №{registration.data.waitlistPosition} в листе ожидания — напишем, как только освободится место
                 </p>
               )}
-              {registration.data.event.started && (
+              {arrivedAt && (
+                // После чекина отказ закрыт (D-022); билет больше не нужен — рамка s4d его не показывает.
+                <div className="banner" role="status">
+                  <Icon name="info" />
+                  <div className="banner__body">
+                    <p className="banner__title">Вы уже прошли на событие в {arrivedAt}</p>
+                    <p>Отказаться от участия уже нельзя</p>
+                  </div>
+                </div>
+              )}
+              {registration.data.event.started && !arrivedAt && (
                 <div className="banner" role="status">
                   <Icon name="info" />
                   <div className="banner__body">
@@ -94,7 +114,7 @@ export function MyRegistrationPage() {
           </div>
           <div className="page__side">
             <div className="panel">
-              {registration.data.ticketCode && <Ticket code={registration.data.ticketCode} />}
+              {registration.data.ticketCode && !arrivedAt && <Ticket code={registration.data.ticketCode} />}
               <dl className="details">
                 <div className="details__row">
                   <dt className="details__term">Участник</dt>
