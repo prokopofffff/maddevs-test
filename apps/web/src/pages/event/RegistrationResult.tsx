@@ -18,8 +18,19 @@ export const useRegistration = (token: string) =>
     queryFn: () => api(client.api.registrations[":token"].$get({ param: { token } })),
   });
 
-/** S3-Result: «Место ваше» (s3a) или «Вы уже зарегистрированы» (s3c) после верного кода. */
-export function RegistrationResult({ result, token }: { result: "confirmed" | "existing"; token: string }) {
+type Result = "confirmed" | "waitlisted" | "existing";
+
+const icons = {
+  confirmed: ["result__icon--success", "check"],
+  waitlisted: ["result__icon--waitlist", "clock"],
+  existing: ["result__icon--info", "info"],
+} as const;
+
+/**
+ * S3-Result после верного кода: «Место ваше» (s3a), «Вы №N в листе ожидания» (s3b)
+ * или «Вы уже зарегистрированы» (s3c).
+ */
+export function RegistrationResult({ result, token }: { result: Result; token: string }) {
   const registration = useRegistration(token);
 
   if (registration.isPending) return <PageSkeleton label="Загрузка регистрации" />;
@@ -34,19 +45,25 @@ export function RegistrationResult({ result, token }: { result: "confirmed" | "e
       </div>
     );
   }
-  const { event, status, ticketCode } = registration.data;
-  const confirmed = result === "confirmed";
+  const { event, status, ticketCode, waitlistPosition } = registration.data;
+  const [iconModifier, icon] = icons[result];
+  const heading = {
+    confirmed: "Место ваше",
+    waitlisted: `Вы №${waitlistPosition} в листе ожидания`,
+    existing: "Вы уже зарегистрированы",
+  }[result];
 
   return (
     <div className="page page--split">
       <Brand />
       <div className="page__main">
         <div className="result">
-          <span className={`result__icon ${confirmed ? "result__icon--success" : "result__icon--info"}`}>
-            <Icon name={confirmed ? "check" : "info"} />
+          <span className={`result__icon ${iconModifier}`}>
+            <Icon name={icon} />
           </span>
-          <h1 className="heading heading--page">{confirmed ? "Место ваше" : "Вы уже зарегистрированы"}</h1>
-          {!confirmed && <StatusBadge status={status} />}
+          <h1 className="heading heading--page">{heading}</h1>
+          {result === "waitlisted" && <p className="text-muted">Напишем, как только освободится место</p>}
+          {result !== "confirmed" && <StatusBadge status={status} position={waitlistPosition} />}
           <div className="event-header">
             <p className="card__title">{event.title}</p>
             <p className="event-header__time">
@@ -59,14 +76,20 @@ export function RegistrationResult({ result, token }: { result: "confirmed" | "e
       <div className="page__side">
         <div className="panel">
           {ticketCode && <Ticket code={ticketCode} large />}
-          {confirmed && (
+          {result === "confirmed" && (
             <p className="result__note">
               <Icon name="info" />
               Билет и ссылка на регистрацию отправлены на почту
             </p>
           )}
+          {result === "waitlisted" && (
+            <p className="result__note">
+              <Icon name="mail" />
+              Ссылка на регистрацию отправлена на почту
+            </p>
+          )}
           <Link className="button button--secondary button--block" to={`/r/${token}`}>
-            {confirmed ? "Моя регистрация" : "Открыть мою регистрацию"}
+            {result === "existing" ? "Открыть мою регистрацию" : "Моя регистрация"}
           </Link>
         </div>
       </div>

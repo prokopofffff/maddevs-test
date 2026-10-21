@@ -25,6 +25,12 @@ const paths = {
       <path d="M7.5 7.5l5 5M12.5 7.5l-5 5" />
     </>
   ),
+  mail: (
+    <>
+      <rect x="3" y="4.5" width="14" height="11" rx="2" />
+      <path d="M3.5 6l6.5 5 6.5-5" />
+    </>
+  ),
   plus: <path d="M10 4v12M4 10h12" />,
   chevronRight: <path d="M8 5l5 5-5 5" />,
   chevronDown: <path d="M5 8l5 5 5-5" />,

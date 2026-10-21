@@ -11,7 +11,6 @@ const messages: Record<string, string> = {
   registration_closed: "Событие началось — регистрация закрыта",
   code_expired: "Код истёк — запросите новый",
   code_attempts_exceeded: "Попытки закончились — запросите новый код",
-  no_seats: "Пока вы вводили код, места закончились",
   code_resend_too_soon: "Код уже отправлен — новый можно запросить через минуту",
   registration_not_found: "Регистрации на этот email нет",
 };

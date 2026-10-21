@@ -12,8 +12,8 @@ import { useRegistration } from "./event/RegistrationResult.tsx";
 import { NotFoundPage } from "./NotFoundPage.tsx";
 
 /**
- * S4-MyReg (s4a): регистрация по личной ссылке — билет и данные участника.
- * Отказ, лист ожидания и заявка на исправление приходят своими тикетами.
+ * S4-MyReg: регистрация по личной ссылке — билет (s4a) или номер в листе ожидания (s4b) и данные участника.
+ * Отказ и заявка на исправление приходят своими тикетами.
  */
 export function MyRegistrationPage() {
   const { token = "" } = useParams();
@@ -39,12 +39,22 @@ export function MyRegistrationPage() {
               </p>
             </header>
             <div className="stack">
-              <StatusBadge status={registration.data.status} />
+              <StatusBadge status={registration.data.status} position={registration.data.waitlistPosition} />
+              {registration.data.status === "waitlisted" && !registration.data.event.started && (
+                <p className="seats seats--waitlist">
+                  <Icon name="clock" />
+                  Вы №{registration.data.waitlistPosition} в листе ожидания — напишем, как только освободится место
+                </p>
+              )}
               {registration.data.event.started && (
                 <div className="banner" role="status">
                   <Icon name="info" />
                   <div className="banner__body">
-                    <p className="banner__title">Событие началось</p>
+                    <p className="banner__title">
+                      {registration.data.status === "waitlisted"
+                        ? "Событие началось, место не освободилось"
+                        : "Событие началось"}
+                    </p>
                   </div>
                 </div>
               )}

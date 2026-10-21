@@ -6,12 +6,14 @@ const labels = {
 
 export type RegistrationStatus = keyof typeof labels;
 
-export function StatusBadge({ status }: { status: RegistrationStatus }) {
+/** Бейдж статуса; у листа ожидания — с номером, если он известен. */
+export function StatusBadge({ status, position }: { status: RegistrationStatus; position?: number }) {
   const [modifier, label] = labels[status];
   return (
     <span className={`badge ${modifier}`}>
       <span className="badge__mark" aria-hidden="true" />
       {label}
+      {status === "waitlisted" && position !== undefined && ` №${position}`}
     </span>
   );
 }
