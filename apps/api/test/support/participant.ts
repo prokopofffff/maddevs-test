@@ -1,0 +1,41 @@
+import { eventInput, signUpOrganizer } from "./organizer.ts";
+import type { Client, TestApp } from "./test-app.ts";
+
+export const participant = (overrides: Record<string, unknown> = {}) => ({
+  email: "anna@example.com",
+  firstName: "Анна",
+  lastName: "Иванова",
+  birthDate: "1994-03-14",
+  ...overrides,
+});
+
+/** Событие нового организатора; организатор возвращается, чтобы смотреть счётчики. */
+export async function createEvent(t: TestApp, overrides: Record<string, unknown> = {}) {
+  const organizer = await signUpOrganizer(t.client());
+  const res = await organizer.post("/api/organizer/events", eventInput(overrides));
+  if (res.status !== 201) throw new Error(`event ${res.status}: ${JSON.stringify(res.body)}`);
+  return { eventId: res.body.event.id as string, organizer };
+}
+
+export function requestCode(client: Client, eventId: string, data: Record<string, unknown> = participant()) {
+  return client.post(`/api/events/${eventId}/verifications`, { purpose: "register", ...data });
+}
+
+/** Код просят, письмо с кодом уходит шагом фоновых циклов, код читается из письма. */
+export async function receiveCode(t: TestApp, eventId: string, data: Record<string, unknown> = participant()) {
+  const res = await requestCode(t.client(), eventId, data);
+  if (res.status !== 201) throw new Error(`verification ${res.status}: ${JSON.stringify(res.body)}`);
+  await t.runJobs(t.clock.now());
+  const to = String(data.email).trim().toLowerCase();
+  return { verificationId: res.body.verificationId as number, code: t.mailbox.lastCode(to) };
+}
+
+export function confirmCode(client: Client, verificationId: number, code: string) {
+  return client.post(`/api/verifications/${verificationId}/confirm`, { code });
+}
+
+/** Полный путь участника: форма → письмо с кодом → ввод кода. */
+export async function register(t: TestApp, eventId: string, data: Record<string, unknown> = participant()) {
+  const { verificationId, code } = await receiveCode(t, eventId, data);
+  return confirmCode(t.client(), verificationId, code);
+}

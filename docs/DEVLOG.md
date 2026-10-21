@@ -316,3 +316,17 @@
 - Проверка: CI run 39546214429, job `check` → typecheck и lint чистые, `Test Files 3 passed`, `Tests 16 passed` на Postgres 17 как service. Чистый клон: `pnpm install --frozen-lockfile && pnpm test` → 16 passed.
 - Окружение разработки: compose этого репо поднят с `POSTGRES_PORT=5442 MAILPIT_SMTP_PORT=1026 MAILPIT_UI_PORT=8026 API_PORT=3998`, тесты — с `TEST_DATABASE_URL=postgres://app:app@localhost:5442/postgres`.
 - Дальше: ревью PR; следующий тикет с фронтира — «R1 — регистрация с кодом подтверждения и письмо с билетом» (#55).
+
+## 2026-10-21 12:05 +0700 — Тикет «R1 — регистрация с кодом подтверждения и письмо с билетом» (#55): начало
+- Цель: срез R1 по `docs/SPEC.md`. Схема `email_verifications` и `email_outbox`; `POST /events/:id/verifications` (только `register` — `lookup` в тикете «потерял письмо»), `POST /verifications/:id/confirm`, `GET /registrations/:token`; `allocate` под блокировкой события с обёрткой `withTx`; письма `code` и `confirmed` через outbox, цикл `dispatchOutbox` с nodemailer, пинок `wake()` после коммита; `runJobs(now)` и фейковый транспорт в тестовой сборке (D-041). Фронт: форма на `/e/:eventId` (S1), ввод кода с таймером повтора (S2), результат (S3), `/r/:token` с билетом (S4a).
+- Порядок по D-029: первый коммит — падающий `requirements/r1-ticket-and-repeat.test.ts`, затем реализация.
+- Заглушка по тикету: пока мест нет — временный ответ «мест нет», лист ожидания — тикет R3.
+- Окружение: на машине уже работает compose соседнего workspace на 5442/1026, поднимаю свой как `docker compose -p helsinki` с `POSTGRES_PORT=5443 MAILPIT_SMTP_PORT=1027 MAILPIT_UI_PORT=8027`; `pnpm test` на нём → 16 passed.
+- Дальше: падающий тест R1.
+
+## 2026-10-21 12:07 +0700 — R1: падающий тест
+- Сделано: `apps/api/test/integration/requirements/r1-ticket-and-repeat.test.ts` — три сценария SPEC (письмо с билетом и личной ссылкой после шага фоновых циклов; повтор ` Anna@Example.com ` → `existing`, одна регистрация, имя прежнее; параллельное подтверждение → одна регистрация). Тестовая сборка получила фейковый транспорт `Mailbox` и `runJobs(now)`; код подтверждения тест читает из письма `code`, а не из базы. `createJobs` пока пустой.
+- Расхождение спеки с D-039: двух живых кодов одного email не бывает, параллельный сценарий — один код дважды. SPEC поправлен.
+- Проверка: `pnpm test` → R1 3 failed (`verification 404: {"error":"not_found"}` — маршрута нет), остальные 16 passed; `pnpm typecheck` и `pnpm lint` чистые.
+- Решения: D-046
+- Дальше: схема, коды, `allocate`, outbox.
