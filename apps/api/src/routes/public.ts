@@ -1,8 +1,9 @@
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { events, registrations } from "../db/schema.ts";
+import type { Queryable } from "../db/tx.ts";
 import { countsFor, freeSeats, started } from "../domain/events.ts";
-import { DomainError } from "../domain/registrations.ts";
+import { DomainError, waitlistPosition, type RegistrationRow } from "../domain/registrations.ts";
 import { confirmVerification, issueVerification } from "../domain/verifications.ts";
 import { apiError, type Env } from "../http.ts";
 import { confirmCodeSchema, verificationRequestSchema } from "../schemas/participant.ts";
@@ -11,6 +12,10 @@ import { isUuid } from "./params.ts";
 
 const TOKEN = /^[A-Za-z0-9_-]{43}$/;
 const ID = /^[1-9]\d{0,15}$/;
+
+/** Номер в листе ожидания — только у `waitlisted`; у остальных поля в ответе нет. */
+const positionOf = async (db: Queryable, registration: RegistrationRow): Promise<{ waitlistPosition?: number }> =>
+  registration.status === "waitlisted" ? { waitlistPosition: await waitlistPosition(db, registration) } : {};
 
 /** Маршруты участника: без входа, доступ по ссылке на событие и по токену личной ссылки (D-007). */
 export const publicRoutes = new Hono<Env>()
@@ -95,9 +100,18 @@ export const publicRoutes = new Hono<Env>()
           return apiError(c, 410, confirmed.error);
       }
     }
-    if (confirmed.result === "confirmed") outbox.wake();
+    // Новая регистрация поставила письмо о месте или о листе ожидания; повтор `existing` писем не шлёт (D-007).
+    if (confirmed.result !== "existing") outbox.wake();
     const { registration } = confirmed;
-    return c.json({ result: confirmed.result, token: registration.token, status: registration.status }, 200);
+    // Номер нового в листе посчитан под блокировкой события; у повтора — текущий.
+    const position: { waitlistPosition?: number } =
+      confirmed.result === "waitlisted"
+        ? { waitlistPosition: confirmed.waitlistPosition }
+        : await positionOf(db, registration);
+    return c.json(
+      { result: confirmed.result, token: registration.token, status: registration.status, ...position },
+      200,
+    );
   })
   .get("/registrations/:token", async (c) => {
     const { db, clock } = c.var;
@@ -127,6 +141,7 @@ export const publicRoutes = new Hono<Env>()
         birthDate: r.birthDate,
         // Билет отменённой регистрации недействителен — не показываем (D-022).
         ticketCode: r.status === "confirmed" ? r.ticketCode : null,
+        ...(await positionOf(db, r)),
         checkedInAt: r.checkedInAt?.toISOString() ?? null,
         cancelledAt: r.cancelledAt?.toISOString() ?? null,
       },

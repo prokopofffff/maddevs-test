@@ -354,3 +354,9 @@
 - Окружение: свой compose `-p hangzhou` (`POSTGRES_PORT=5444 MAILPIT_SMTP_PORT=1028 MAILPIT_UI_PORT=8028`), соседние workspace держат 5442/5443.
 - Проверка: `pnpm test` → R3 2 failed (`expected [200, 409, 409, …] to deeply equal [200, 200, …]`, `{ error: 'no_seats' }`), 36 passed; `pnpm typecheck`, `pnpm lint` чистые.
 - Дальше: `allocate` с листом ожидания, письмо `waitlisted`, позиция в ответах.
+
+## 2026-10-21 12:39 +0700 — R3: лист ожидания в `allocate`, письмо `waitlisted`, номер в ответах — тест зелёный
+- Сделано: заглушка `409 no_seats` убрана. Под блокировкой события `allocate` даёт `confirmed`, если подтверждённых меньше лимита и лист пуст, иначе `waitlisted` без билета и `confirmed_at`. `waitlistPosition` считает `1 + count(*)` по `(verified_at, id)` строчным сравнением. Дата в сыром `sql` сама не кодируется: параметр идёт через `sql.param(…, registrations.verifiedAt)`. Письмо `waitlisted` (`waitlisted:<id>`) несёт номер, время и личную ссылку; рамки в шаблоне нет, собрано из блоков `S10-Email`. `confirm` отдаёт `waitlistPosition` у `waitlisted`, повтор `existing` — текущий номер; `GET /registrations/:token` — тоже. Пинок отправки срабатывает и после `waitlisted`. Тест заглушки «мест нет — no_seats» заменён тестом «повтор из листа ожидания — existing с текущим номером, нового письма нет».
+- Проверка: `pnpm test` → 7 файлов, 38 passed, R3 3/3; ещё три прогона подряд — 38 passed. `pnpm typecheck` и `pnpm lint` чистые.
+- Решения: D-047
+- Дальше: экраны — «Вы №N в листе ожидания» (s3b) и номер на `/r/:token` (s4b).

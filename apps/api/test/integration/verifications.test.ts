@@ -148,17 +148,27 @@ describe("регистрация после начала события", () => 
   });
 });
 
-describe("пока нет листа ожидания", () => {
-  it("мест нет — временный ответ no_seats, регистрации не создаётся", async () => {
+describe("лист ожидания", () => {
+  it("повтор регистрации из листа ожидания — existing с текущим номером, нового письма нет", async () => {
     const t = testApp();
-    const { eventId, organizer } = await createEvent(t, { limit: 1 });
+    const { eventId } = await createEvent(t, { limit: 1 });
     await register(t, eventId);
+    await register(t, eventId, participant({ email: "boris@example.com" }));
+    const first = await register(t, eventId, participant({ email: "vera@example.com" }));
+    expect(first.body).toMatchObject({ result: "waitlisted", waitlistPosition: 2 });
+    await t.runJobs(t.clock.now());
+    t.clock.set(new Date(t.clock.now().getTime() + 5 * 60_000));
 
-    const res = await register(t, eventId, participant({ email: "boris@example.com" }));
+    const again = await register(t, eventId, participant({ email: " Vera@Example.com ", firstName: "Вера" }));
 
-    expect(res.status).toBe(409);
-    expect(res.body).toEqual({ error: "no_seats" });
-    expect((await organizer.get(`/api/organizer/events/${eventId}`)).body.registrationCount).toBe(1);
+    expect(again.body).toEqual({
+      result: "existing",
+      status: "waitlisted",
+      token: first.body.token,
+      waitlistPosition: 2,
+    });
+    await t.runJobs(t.clock.now());
+    expect(t.mailbox.ofKind("waitlisted", "vera@example.com")).toHaveLength(1);
   });
 });
 
