@@ -1,7 +1,7 @@
 import { and, desc, eq, gt, sql } from "drizzle-orm";
 import type { Db } from "../db/client.ts";
 import { emailVerifications } from "../db/schema.ts";
-import { withTx } from "../db/tx.ts";
+import { withTx, type Tx } from "../db/tx.ts";
 import { enqueue } from "../mail/outbox.ts";
 import { codeMail } from "../mail/templates/code.ts";
 import type { VerificationRequest } from "../schemas/participant.ts";
@@ -18,13 +18,17 @@ export const MAX_CODE_ATTEMPTS = 5;
 const isFutureDate = (date: string, now: Date) => date > now.toISOString().slice(0, 10);
 
 /**
- * Выдача кода `register` (SPEC, раздел 4, порядок проверок). Новый код гасит прежние той же пары
- * и того же назначения (D-039); письмо с кодом — в той же транзакции.
+ * Выдача кода (SPEC, раздел 4, порядок проверок). Начало и возраст проверяются только у `register`:
+ * `lookup` открыт и после начала (D-033). Новый код гасит прежние той же пары и того же назначения (D-039);
+ * письмо с кодом — в той же транзакции.
  */
 export async function issueVerification(db: Db, event: EventRow, input: VerificationRequest, { now }: MailContext) {
-  if (started(event, now)) return { error: "registration_closed" as const };
-  if (isFutureDate(input.birthDate, now)) return { error: "birth_date_in_future" as const };
-  if (belowMinAge(input.birthDate, event)) return { error: "below_min_age" as const, minAge: event.minAge! };
+  if (input.purpose === "register") {
+    if (started(event, now)) return { error: "registration_closed" as const };
+    if (isFutureDate(input.birthDate, now)) return { error: "birth_date_in_future" as const };
+    if (belowMinAge(input.birthDate, event)) return { error: "below_min_age" as const, minAge: event.minAge! };
+  }
+  const form = input.purpose === "register" ? input : undefined;
 
   const [previous] = await db
     .select({ createdAt: emailVerifications.createdAt })
@@ -56,9 +60,9 @@ export async function issueVerification(db: Db, event: EventRow, input: Verifica
         eventId: event.id,
         email: input.email,
         purpose: input.purpose,
-        firstName: input.firstName,
-        lastName: input.lastName,
-        birthDate: input.birthDate,
+        firstName: form?.firstName,
+        lastName: form?.lastName,
+        birthDate: form?.birthDate,
         code,
         expiresAt: new Date(now.getTime() + CODE_TTL_MS),
         createdAt: now,
@@ -73,9 +77,13 @@ export async function issueVerification(db: Db, event: EventRow, input: Verifica
   });
 }
 
+const consume = (tx: Tx, id: number, now: Date) =>
+  tx.update(emailVerifications).set({ consumedAt: now }).where(eq(emailVerifications.id, id));
+
 /**
  * Ввод кода (SPEC, раздел 4): строка кода берётся `FOR UPDATE`, попытки считаются без гонки.
  * Верный код `register` ведёт в `allocate`; повтор уже использованного кода — `existing` (D-046).
+ * Верный код `lookup` — неотменённая регистрация этого email или `registration_not_found` (D-039).
  */
 export async function confirmVerification(db: Db, id: number, code: string, ctx: MailContext) {
   return withTx(db, async (tx) => {
@@ -95,13 +103,21 @@ export async function confirmVerification(db: Db, id: number, code: string, ctx:
       return { error: "code_invalid" as const, attemptsLeft: MAX_CODE_ATTEMPTS - verification.attempts - 1 };
     }
 
+    // `lookup` только читает: повтор того же кода снова открывает регистрацию (D-048).
+    if (verification.purpose === "lookup") {
+      if (!verification.consumedAt) await consume(tx, id, ctx.now);
+      const registration = await activeRegistration(tx, verification.eventId, verification.email);
+      if (!registration) return { error: "registration_not_found" as const };
+      return { result: "found" as const, registration };
+    }
+
     if (verification.consumedAt) {
       const existing = await activeRegistration(tx, verification.eventId, verification.email);
       if (!existing) return { error: "code_expired" as const };
       return { result: "existing" as const, registration: existing };
     }
 
-    await tx.update(emailVerifications).set({ consumedAt: ctx.now }).where(eq(emailVerifications.id, id));
+    await consume(tx, id, ctx.now);
     const event = await lockEvent(tx, verification.eventId);
     // Событие удалено вместе с кодами каскадом: до сюда не дойдём, но тип требует проверки.
     if (!event) return { error: "not_found" as const };

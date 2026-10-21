@@ -4,7 +4,7 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["**/dist/**", "**/node_modules/**", ".context/**", "apps/api/drizzle/**"] },
+  { ignores: ["**/dist/**", "**/node_modules/**", ".context/**", "apps/api/drizzle/**", "e2e/test-results/**", "e2e/playwright-report/**"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
@@ -13,7 +13,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ["apps/api/**/*.ts", "**/*.mjs", "*.js"],
+    files: ["apps/api/**/*.ts", "e2e/**/*.ts", "**/*.mjs", "*.js"],
     languageOptions: { globals: globals.node },
   },
   {

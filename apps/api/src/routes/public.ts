@@ -92,6 +92,7 @@ export const publicRoutes = new Hono<Env>()
     if ("error" in confirmed) {
       switch (confirmed.error) {
         case "not_found":
+        case "registration_not_found":
           return apiError(c, 404, confirmed.error);
         case "code_invalid":
           return apiError(c, 400, confirmed.error, { attemptsLeft: confirmed.attemptsLeft });
@@ -100,6 +101,7 @@ export const publicRoutes = new Hono<Env>()
           return apiError(c, 410, confirmed.error);
       }
     }
+    if (confirmed.result === "found") return c.json({ result: confirmed.result, token: confirmed.registration.token }, 200);
     // Новая регистрация поставила письмо о месте или о листе ожидания; повтор `existing` писем не шлёт (D-007).
     if (confirmed.result !== "existing") outbox.wake();
     const { registration } = confirmed;

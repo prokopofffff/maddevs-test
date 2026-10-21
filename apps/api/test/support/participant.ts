@@ -34,6 +34,18 @@ export function confirmCode(client: Client, verificationId: number, code: string
   return client.post(`/api/verifications/${verificationId}/confirm`, { code });
 }
 
+export function requestLookup(client: Client, eventId: string, email = "anna@example.com") {
+  return client.post(`/api/events/${eventId}/verifications`, { purpose: "lookup", email });
+}
+
+/** «Потерял письмо»: код на email, письмо уходит шагом фоновых циклов, код читается из письма. */
+export async function receiveLookupCode(t: TestApp, eventId: string, email = "anna@example.com") {
+  const res = await requestLookup(t.client(), eventId, email);
+  if (res.status !== 201) throw new Error(`lookup ${res.status}: ${JSON.stringify(res.body)}`);
+  await t.runJobs(t.clock.now());
+  return { verificationId: res.body.verificationId as number, code: t.mailbox.lastCode(email.trim().toLowerCase()) };
+}
+
 /** Полный путь участника: форма → письмо с кодом → ввод кода. */
 export async function register(t: TestApp, eventId: string, data: Record<string, unknown> = participant()) {
   const { verificationId, code } = await receiveCode(t, eventId, data);
