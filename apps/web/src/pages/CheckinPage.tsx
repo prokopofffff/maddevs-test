@@ -1,6 +1,6 @@
 import { formatTicketCode, normalizeTicketCode, TICKET_CODE } from "@app/api/schemas";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 import { api, ApiError, client } from "../api.ts";
 import { ErrorBanner } from "../components/Banner.tsx";
@@ -38,6 +38,12 @@ export function CheckinPage() {
   const input = useRef<HTMLInputElement>(null);
   const [value, setValue] = useState("");
   const [result, setResult] = useState<Result | null>(null);
+  const pass = useRef<HTMLButtonElement>(null);
+  // Каждая новая карточка — фокус на «Пропустить»: второй Enter отмечает (D-023). `autoFocus` не годится:
+  // карточка, сменившая карточку, — тот же элемент, и фокус остался бы в поле.
+  useEffect(() => {
+    if (result?.kind === "card") pass.current?.focus();
+  }, [result]);
   const eventKey = ["organizer", "event", id];
   const event = useQuery({
     queryKey: eventKey,
@@ -189,11 +195,10 @@ export function CheckinPage() {
                 <p className="text-small text-muted">Код билета</p>
                 <p className="ticket-code ticket-code--lg ticket-code--mark">{formatTicketCode(result.card.code)}</p>
               </div>
-              {/* Фокус на кнопке: второй Enter отмечает (D-023). */}
               <button
+                ref={pass}
                 className="button button--primary button--lg button--block"
                 type="button"
-                autoFocus
                 disabled={mark.isPending}
                 onClick={() => mark.mutate(result.card.code)}
               >
