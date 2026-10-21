@@ -81,3 +81,8 @@ export async function updateEvent(
     .returning();
   return updated!;
 }
+
+/** Удаление события, созданного по ошибке; коды подтверждения уходят каскадом (D-035). */
+export async function deleteEvent(tx: Tx, event: EventRow): Promise<void> {
+  await tx.delete(events).where(eq(events.id, event.id));
+}

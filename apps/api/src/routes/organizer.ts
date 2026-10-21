@@ -2,7 +2,7 @@ import { and, asc, count, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { events, registrations } from "../db/schema.ts";
 import { withTx } from "../db/tx.ts";
-import { countsFor, lockEvent, started, updateEvent, type EventRow } from "../domain/events.ts";
+import { countsFor, deleteEvent, lockEvent, started, updateEvent, type EventRow } from "../domain/events.ts";
 import { apiError, type Env } from "../http.ts";
 import { eventInputSchema, eventPatchSchema } from "../schemas/event.ts";
 import { instantToLocal, localToInstant } from "../time.ts";
@@ -102,4 +102,16 @@ export const organizerRoutes = new Hono<Env>()
     if ("error" in event) return apiError(c, 501, event.error);
     const counts = await countsFor(db, [event]);
     return c.json({ event: organizerEvent(event, now), counts: counts.get(event.id)! }, 200);
+  })
+  .delete("/events/:id", async (c) => {
+    const { db, user } = c.var;
+    const id = c.req.param("id");
+    const deleted = await withTx(db, async (tx) => {
+      const locked = isUuid(id) ? await lockEvent(tx, id) : undefined;
+      if (!locked || locked.organizerId !== user.id) return false;
+      await deleteEvent(tx, locked);
+      return true;
+    });
+    if (!deleted) return apiError(c, 404, "not_found");
+    return c.body(null, 204);
   });

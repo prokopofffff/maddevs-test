@@ -91,4 +91,15 @@ describe("правка и удаление события", () => {
       limit: 50,
     });
   });
+
+  it("событие без регистраций удаляется", async () => {
+    const organizer = await signUpOrganizer(testApp().client());
+    const { id } = (await organizer.post("/api/organizer/events", eventInput())).body.event;
+
+    const res = await organizer.delete(`/api/organizer/events/${id}`);
+
+    expect(res.status).toBe(204);
+    expect((await organizer.get(`/api/organizer/events/${id}`)).status).toBe(404);
+    expect((await organizer.get("/api/organizer/events")).body.events).toEqual([]);
+  });
 });
