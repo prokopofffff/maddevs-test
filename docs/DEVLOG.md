@@ -473,3 +473,9 @@
 - Сделано: `origin/main` влит в ветку PR #75. Конфликты: записи DEVLOG и PROMPTS обеих веток сведены по времени; в `app.css` оставлены оба правила. R2 принёс общий `ConfirmDialog` и `.dialog-backdrop--fixed`, поэтому свой `DeleteDialog` и правило `.dialog-backdrop { position: fixed }` убраны. Удаление теперь идёт через `ConfirmDialog`: ошибка `409` показывается внутри диалога, событие перезагружается, кнопка «Удалить» пропадает. Отказ теперь есть, поэтому тест «отменённая регистрация тоже не даёт удалить событие» отменяет регистрацию через `POST /registrations/:token/cancel` вместо `UPDATE` в базе.
 - Проверка: `pnpm test` → 11 файлов, 61 passed; `pnpm typecheck` и `pnpm lint` чистые; `pnpm e2e` вместе с проходами `.context/walk-edit.spec.ts` и `.context/zz-walk-create.spec.ts` → 4 passed (lookup, cancel, правка и удаление, создание).
 - Дальше: CI на слиянии, ревью PR.
+
+## 2026-10-21 16:25 +0700 — Удаление веток после слияния PR
+- Сделано: в репозитории включена настройка «Automatically delete head branches» (D-050). С `origin` удалены 20 веток слитых PR; у каждой вершина совпадала с `headRefOid` слитого PR. Код не менялся.
+- Проверка: `gh api -X PATCH repos/prokopofffff/maddevs-test -f delete_branch_on_merge=true` → `true`; `git ls-remote --heads origin` → `main` и `prokopofffff/wayfinder-github-issue` (без слитого PR, оставлена).
+- Решения: D-050
+- Дальше: слияние этого PR — проверка, что его ветка удалится сама.
