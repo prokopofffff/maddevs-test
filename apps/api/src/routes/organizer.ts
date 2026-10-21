@@ -1,9 +1,10 @@
 import { and, asc, count, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { events, registrations } from "../db/schema.ts";
-import { countsFor, started, type EventRow } from "../domain/events.ts";
+import { withTx } from "../db/tx.ts";
+import { countsFor, lockEvent, started, updateEvent, type EventRow } from "../domain/events.ts";
 import { apiError, type Env } from "../http.ts";
-import { eventInputSchema } from "../schemas/event.ts";
+import { eventInputSchema, eventPatchSchema } from "../schemas/event.ts";
 import { instantToLocal, localToInstant } from "../time.ts";
 import { validate } from "../validation.ts";
 import { requireUser } from "./auth.ts";
@@ -86,4 +87,18 @@ export const organizerRoutes = new Hono<Env>()
       },
       200,
     );
+  })
+  .patch("/events/:id", validate("json", eventPatchSchema), async (c) => {
+    const { db, clock, user } = c.var;
+    const id = c.req.param("id");
+    const patch = c.req.valid("json");
+    const now = clock.now();
+    const event = await withTx(db, async (tx) => {
+      const locked = isUuid(id) ? await lockEvent(tx, id) : undefined;
+      if (!locked || locked.organizerId !== user.id) return undefined;
+      return updateEvent(tx, locked, patch, now);
+    });
+    if (!event) return apiError(c, 404, "not_found");
+    const counts = await countsFor(db, [event]);
+    return c.json({ event: organizerEvent(event, now), counts: counts.get(event.id)! }, 200);
   });

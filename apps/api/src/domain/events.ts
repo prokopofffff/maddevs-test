@@ -1,6 +1,7 @@
 import { eq, inArray, sql } from "drizzle-orm";
 import { events, registrations } from "../db/schema.ts";
-import type { Queryable } from "../db/tx.ts";
+import type { Queryable, Tx } from "../db/tx.ts";
+import type { EventPatch } from "../schemas/event.ts";
 
 export type EventRow = typeof events.$inferSelect;
 
@@ -49,4 +50,19 @@ export async function lockEvent(tx: Queryable, id: string): Promise<EventRow | u
 export function freeSeats(event: Pick<EventRow, "startsAt">, counts: Counts, now: Date) {
   if (started(event, now) || counts.waitlisted > 0) return 0;
   return Math.max(0, counts.limit - counts.confirmed);
+}
+
+/** Правка организатором: событие уже под блокировкой (SPEC, раздел 3). */
+export async function updateEvent(tx: Tx, event: EventRow, patch: EventPatch, now: Date): Promise<EventRow> {
+  const [updated] = await tx
+    .update(events)
+    .set({
+      title: patch.title ?? event.title,
+      description: patch.description ?? event.description,
+      minAge: patch.minAge === undefined ? event.minAge : patch.minAge,
+      updatedAt: now,
+    })
+    .where(eq(events.id, event.id))
+    .returning();
+  return updated!;
 }
