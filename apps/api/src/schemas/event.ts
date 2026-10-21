@@ -15,3 +15,8 @@ export const eventInputSchema = z.object({
 });
 
 export type EventInput = z.infer<typeof eventInputSchema>;
+
+/** Правка: те же поля, все необязательны. Без `startsLocal` момент начала сохраняется (D-016). */
+export const eventPatchSchema = eventInputSchema.partial();
+
+export type EventPatch = z.infer<typeof eventPatchSchema>;

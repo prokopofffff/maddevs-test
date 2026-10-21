@@ -60,6 +60,12 @@ export class Client {
   post<T = any>(path: string, body?: unknown) {
     return this.request<T>("POST", path, body);
   }
+  patch<T = any>(path: string, body?: unknown) {
+    return this.request<T>("PATCH", path, body);
+  }
+  delete<T = any>(path: string) {
+    return this.request<T>("DELETE", path);
+  }
 }
 
 /**
