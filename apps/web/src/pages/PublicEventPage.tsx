@@ -1,4 +1,4 @@
-import type { RegistrationForm as FormData } from "@app/api/schemas";
+import type { RegistrationForm as FormData, VerificationRequest } from "@app/api/schemas";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router";
@@ -10,6 +10,7 @@ import { PageSkeleton } from "../components/Skeleton.tsx";
 import { errorText } from "../errors.ts";
 import { formatEventTime, seatsLeft } from "../format.ts";
 import { CodeStep } from "./event/CodeStep.tsx";
+import { LookupForm } from "./event/LookupForm.tsx";
 import { RegistrationForm } from "./event/RegistrationForm.tsx";
 import { RegistrationResult } from "./event/RegistrationResult.tsx";
 import { NotFoundPage } from "./NotFoundPage.tsx";
@@ -23,7 +24,7 @@ const isCode = (error: unknown, code: string): error is ApiError => error instan
 
 /**
  * Страница события по ссылке: S1-Event (описание, свободные места, форма) → S2-Code (ввод кода) → S3-Result.
- * «Уже регистрировались?» приходит с тикетом «потерял письмо».
+ * «Уже регистрировались?» ведёт через тот же ввод кода сразу на `/r/:token` (D-039).
  */
 export function PublicEventPage() {
   const { eventId = "" } = useParams();
@@ -36,8 +37,11 @@ export function PublicEventPage() {
   });
   const [step, setStep] = useState<Step>({ name: "form" });
   const [data, setData] = useState<FormData>();
-  // Код, с которого вернулись «Изменить email»: тот же адрес раньше минуты снова ведёт к нему.
-  const [previous, setPrevious] = useState<{ email: string; verificationId: number }>();
+  const [lookupEmail, setLookupEmail] = useState<string>();
+  // Последний отправленный запрос кода: по нему повторная отправка и адрес на экране кода.
+  const [sent, setSent] = useState<VerificationRequest>();
+  // Код, с которого вернулись «Изменить email»: тот же запрос раньше минуты снова ведёт к нему.
+  const [previous, setPrevious] = useState<{ purpose: string; email: string; verificationId: number }>();
   const verificationId = step.name === "code" ? step.verificationId : undefined;
 
   const toCode = (id: number, resendAt: number) => setStep({ name: "code", verificationId: id, resendAt });
@@ -46,26 +50,32 @@ export function PublicEventPage() {
     if (isCode(error, "registration_closed")) void queryClient.invalidateQueries({ queryKey: eventKey });
   };
 
-  const requestCode = (input: FormData) =>
-    api(client.api.events[":id"].verifications.$post({ param: { id: eventId }, json: { purpose: "register", ...input } }));
-
-  const request = useMutation({
+  const requestCode = (input: VerificationRequest) =>
+    api(client.api.events[":id"].verifications.$post({ param: { id: eventId }, json: input }));
+  const codeRequest = {
     mutationFn: requestCode,
-    onSuccess: (res, input) => {
-      setData(input);
+    onSuccess: (res: { verificationId: number; resendAfter: string }, input: VerificationRequest) => {
+      setSent(input);
       toCode(res.verificationId, Date.parse(res.resendAfter));
     },
-    onError: (error, input) => {
+    onError: (error: unknown, input: VerificationRequest) => {
       // Вернулись «Изменить email» и отправили тот же адрес раньше минуты — прежний код ещё действует.
-      if (isCode(error, "code_resend_too_soon") && previous?.email === input.email) {
-        setData(input);
+      if (
+        isCode(error, "code_resend_too_soon") &&
+        previous?.purpose === input.purpose &&
+        previous.email === input.email
+      ) {
+        setSent(input);
         toCode(previous.verificationId, Date.now() + Number(error.details.retryAfter) * 1000);
       }
       onClosed(error);
     },
-  });
+  };
+
+  const request = useMutation(codeRequest);
+  const lookup = useMutation(codeRequest);
   const resend = useMutation({
-    mutationFn: () => requestCode(data!),
+    mutationFn: () => requestCode(sent!),
     onSuccess: (res) => toCode(res.verificationId, Date.parse(res.resendAfter)),
     onError: (error) => {
       if (isCode(error, "code_resend_too_soon") && verificationId !== undefined) {
@@ -87,11 +97,11 @@ export function PublicEventPage() {
   });
 
   if (step.name === "result") return <RegistrationResult result={step.result} token={step.token} />;
-  if (step.name === "code" && data) {
+  if (step.name === "code" && sent) {
     return (
       <CodeStep
         key={`${step.verificationId}:${step.resendAt}`}
-        email={data.email}
+        email={sent.email}
         resendAt={step.resendAt}
         confirming={confirm.isPending}
         confirmError={confirm.error}
@@ -103,10 +113,15 @@ export function PublicEventPage() {
           resend.mutate();
         }}
         onBack={() => {
-          setPrevious({ email: data.email, verificationId: step.verificationId });
+          setPrevious({ purpose: sent.purpose, email: sent.email, verificationId: step.verificationId });
+          if (sent.purpose === "register") {
+            const { purpose: _, ...form } = sent;
+            setData(form);
+          } else setLookupEmail(sent.email);
           confirm.reset();
           resend.reset();
           request.reset();
+          lookup.reset();
           setStep({ name: "form" });
         }}
       />
@@ -164,10 +179,16 @@ export function PublicEventPage() {
                     initial={data}
                     pending={request.isPending}
                     error={request.error}
-                    onSubmit={(input) => request.mutate(input)}
+                    onSubmit={(input) => request.mutate({ purpose: "register", ...input })}
                   />
                 </>
               )}
+              <LookupForm
+                initial={lookupEmail}
+                pending={lookup.isPending}
+                error={lookup.error}
+                onSubmit={(email) => lookup.mutate({ purpose: "lookup", email })}
+              />
             </div>
           </div>
         </>

@@ -436,10 +436,11 @@ Cookie `sid`: httpOnly, `SameSite=Lax`, `Path=/`, `Max-Age` 30 дней, `Secure
 
 ### E2e (Playwright, Chromium)
 
-`webServer` — собранное приложение на отдельном порту, своя база, поднятые лимиты rate limit, SMTP в compose-Mailpit. Адреса уникальные, письма ищутся в API Mailpit по получателю (D-028).
+`webServer` (`e2e/server.ts`) — собранное приложение на отдельном порту, своя база `app_e2e` (пересоздаётся на каждый запуск), поднятые лимиты rate limit, SMTP в compose-Mailpit. Адреса уникальные, письма ищутся в API Mailpit по получателю (D-028). Часы тест не двигает: «прошла минута» и «событие началось» — сдвигом моментов в базе e2e (D-047).
 1. **Две вкладки:** организатор в двух контекстах, чекин в одном → «Пришло» растёт в другом без перезагрузки; повторный код → «Уже прошёл в …».
 2. **Регистрация:** форма → код из Mailpit → «Место ваше» → письмо с билетом в Mailpit.
 3. **Отказ и повышение:** событие с лимитом 1 и листом ожидания → отказ по личной ссылке из письма → первому из листа приходит письмо «Освободилось место».
+4. **Потерял письмо:** зарегистрированный участник, событие началось → на странице события только «Регистрация закрыта» и «Уже регистрировались?» → email → код из Mailpit → `/r/:token` с билетом (D-047).
 
 ## 10. Конфигурация и запуск
 
@@ -467,7 +468,9 @@ ESLint `no-restricted-imports` в `apps/web`: из `apps/api` разрешены
 | Имя | По умолчанию | Назначение |
 |---|---|---|
 | `DATABASE_URL` | `postgres://app:app@localhost:5432/app` | база приложения |
-| `TEST_DATABASE_URL` | `postgres://app:app@localhost:5432/postgres` | сервер для тестовых баз |
+| `TEST_DATABASE_URL` | `postgres://app:app@localhost:5432/postgres` | сервер для тестовых баз и базы e2e |
+| `MAILPIT_URL` | `http://localhost:8025` | API Mailpit для e2e |
+| `E2E_PORT` | `3100` | порт приложения в e2e |
 | `PORT` | `3000` | |
 | `PUBLIC_URL` | `http://localhost:3000` | основа ссылок в письмах и «ссылки для участников» |
 | `SMTP_HOST`, `SMTP_PORT` | `localhost`, `1025` | Mailpit |
@@ -483,7 +486,7 @@ ESLint `no-restricted-imports` в `apps/web`: из `apps/api` разрешены
 | `pnpm dev` | API с перезапуском и Vite с прокси `/api` (`xfwd: true`, API с `TRUST_PROXY=1`) |
 | `pnpm build` / `pnpm start` | сборка фронта и API; один процесс отдаёт оба (D-024) |
 | `pnpm test` | Vitest `integration`; без compose падает с подсказкой «Запустите `docker compose up -d`» (D-028) |
-| `pnpm e2e` | Playwright |
+| `pnpm e2e` | Playwright; сам собирает фронт и поднимает приложение, compose должен быть запущен |
 | `pnpm lint`, `pnpm typecheck` | |
 | `pnpm db:generate` | `drizzle-kit generate` |
 | `pnpm db:seed` / `pnpm db:reset` | демо-данные; на непустой базе сид отказывается и подсказывает `db:reset` (D-010) |
