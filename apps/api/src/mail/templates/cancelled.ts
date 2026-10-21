@@ -1,5 +1,5 @@
 import { formatEventTime, utcOffset } from "../../time.ts";
-import { BRAND, eventBlock, headingBlock, layout, paragraphBlock, type Rendered } from "./layout.ts";
+import { BRAND, eventBlock, headingBlock, layout, type Rendered } from "./layout.ts";
 
 export interface CancelledMail {
   event: { title: string; startsAt: Date; timezone: string };
@@ -17,8 +17,7 @@ export function cancelledMail({ event, firstName }: CancelledMail): Rendered {
     html: layout(
       [
         headingBlock(`${firstName}, отказ принят`, "Вы отказались от участия"),
-        eventBlock(event.title, time),
-        paragraphBlock(story),
+        eventBlock(event.title, time, story),
       ],
       `Вы получили это письмо, потому что по личной ссылке из письма о регистрации на событие «${event.title}» нажали «Отказаться от участия». Время указано в часовом поясе события (${utcOffset(event.startsAt, event.timezone)}).`,
     ),

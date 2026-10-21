@@ -1,15 +1,6 @@
 import { formatTicketCode } from "../../schemas/ticket.ts";
 import { formatEventTime, utcOffset } from "../../time.ts";
-import {
-  BRAND,
-  buttonBlock,
-  codeBlock,
-  eventBlock,
-  headingBlock,
-  layout,
-  paragraphBlock,
-  type Rendered,
-} from "./layout.ts";
+import { BRAND, buttonBlock, codeBlock, eventBlock, headingBlock, layout, type Rendered } from "./layout.ts";
 
 export interface PromotedMail {
   event: { title: string; startsAt: Date; timezone: string };
@@ -46,8 +37,7 @@ export function promotedMail({ event, firstName, ticketCode, link }: PromotedMai
     html: layout(
       [
         headingBlock(`${firstName}, вы были в листе ожидания`, "Для вас освободилось место"),
-        eventBlock(event.title, time),
-        paragraphBlock(story),
+        eventBlock(event.title, time, story),
         codeBlock("Код билета", "Покажите на входе", ticket),
         buttonBlock("Моя регистрация", link, note),
       ],

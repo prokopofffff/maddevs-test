@@ -1,0 +1,61 @@
+import { useEffect, useId, useRef } from "react";
+import { ErrorBanner } from "./Banner.tsx";
+
+interface ConfirmDialogProps {
+  title: string;
+  text: string;
+  confirmLabel: string;
+  cancelLabel: string;
+  pending?: boolean;
+  error?: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+/**
+ * Диалог подтверждения опасного действия (`c-dialog`). Фокус — на безопасной кнопке,
+ * Escape закрывает, после закрытия фокус возвращается туда, откуда диалог открыли.
+ */
+export function ConfirmDialog({ title, text, confirmLabel, cancelLabel, pending, error, onConfirm, onCancel }: ConfirmDialogProps) {
+  const id = useId();
+  const safe = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const opener = document.activeElement as HTMLElement | null;
+    safe.current?.focus();
+    return () => opener?.focus();
+  }, []);
+
+  return (
+    <div
+      className="dialog-backdrop dialog-backdrop--fixed"
+      onKeyDown={(e) => {
+        if (e.key === "Escape" && !pending) onCancel();
+      }}
+    >
+      <div
+        className="dialog"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby={`${id}-title`}
+        aria-describedby={`${id}-text`}
+      >
+        <h2 className="dialog__title" id={`${id}-title`}>
+          {title}
+        </h2>
+        <p className="dialog__text" id={`${id}-text`}>
+          {text}
+        </p>
+        {error && <ErrorBanner>{error}</ErrorBanner>}
+        <div className="dialog__actions">
+          <button className="button button--danger" type="button" disabled={pending} onClick={onConfirm}>
+            {confirmLabel}
+          </button>
+          <button ref={safe} className="button button--secondary" type="button" disabled={pending} onClick={onCancel}>
+            {cancelLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -38,12 +38,13 @@ export const headingBlock = (eyebrow: string, heading: string) =>
       `<h1 style="margin:0;font-size:40px;line-height:44px;font-weight:800;letter-spacing:-1.6px;color:${INK};">${escapeHtml(heading)}</h1>`,
   );
 
-/** Название события и время в его поясе. */
-export const eventBlock = (title: string, time: string) =>
+/** Название события и время в его поясе; `note` — абзац под ними, как пояснение в s10b. */
+export const eventBlock = (title: string, time: string, note?: string) =>
   row(
     "padding:16px 32px 24px;",
     `<p style="margin:0 0 4px;font-size:18px;line-height:26px;font-weight:700;color:${INK};">${escapeHtml(title)}</p>` +
-      `<p style="margin:0;font-size:16px;line-height:24px;color:${INK};">${escapeHtml(time)}</p>`,
+      `<p style="margin:0;font-size:16px;line-height:24px;color:${INK};">${escapeHtml(time)}</p>` +
+      (note ? `<p style="margin:16px 0 0;font-size:16px;line-height:24px;color:${INK};">${escapeHtml(note)}</p>` : ""),
   );
 
 /** Рамка с подписью и крупным моноширинным кодом — билет или код подтверждения (D-023). */
