@@ -17,7 +17,7 @@ import { NotFoundPage } from "./NotFoundPage.tsx";
 type Step =
   | { name: "form" }
   | { name: "code"; verificationId: number; resendAt: number }
-  | { name: "result"; result: "confirmed" | "existing"; token: string };
+  | { name: "result"; result: "confirmed" | "waitlisted" | "existing"; token: string };
 
 const isCode = (error: unknown, code: string): error is ApiError => error instanceof ApiError && error.code === code;
 
