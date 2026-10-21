@@ -21,5 +21,10 @@ button.back-link { padding: 0; border: 0; background: none; font: inherit; font-
 /* После начала дата и лимит только для чтения (D-033): выглядят как `:disabled` шаблона, но значение остаётся в форме. */
 .form .field__control[readonly] { border-color: var(--color-border); background: var(--color-surface-muted); color: var(--color-disabled-ink); cursor: not-allowed; }
 
+/* Предупреждающая пометка: «10 сверх лимита» на плашке (D-032), «младше 18» в списке участников (D-017). Цвет — как у `.banner--warning`. */
+.warn-mark { align-self: flex-start; padding: 2px var(--space-2); border-radius: var(--radius-sm); background: var(--color-warning); font-size: var(--font-size-sm); font-weight: var(--font-weight-bold); }
+.warn-mark--inline { margin-left: var(--space-2); }
+.stat__bar-fill--over { background: var(--color-warning); }
+
 /* Экран чекина: у `.checkin` шаблона `min-height`, и сетка растягивает строки — при коротком исходе поле кода съезжает вниз. */
 .checkin { align-content: start; }

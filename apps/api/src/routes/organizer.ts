@@ -1,10 +1,12 @@
 import { and, asc, count, eq } from "drizzle-orm";
+import type { Queryable } from "../db/tx.ts";
 import { Hono } from "hono";
 import { events, registrations } from "../db/schema.ts";
-import { withTx, type Queryable } from "../db/tx.ts";
+import { withTx } from "../db/tx.ts";
 import { ageOnEventDay, belowMinAge } from "../domain/age.ts";
 import { checkIn, findTicket } from "../domain/checkin.ts";
 import { countsFor, deleteEvent, lockEvent, started, updateEvent, type EventRow } from "../domain/events.ts";
+import { eventRegistrations } from "../domain/registrations.ts";
 import { apiError, type Env } from "../http.ts";
 import { eventInputSchema, eventPatchSchema } from "../schemas/event.ts";
 import { checkinSchema } from "../schemas/ticket.ts";
@@ -25,13 +27,10 @@ const organizerEvent = (e: EventRow, now: Date) => ({
   started: started(e, now),
 });
 
-/** Событие организатора; чужое неотличимо от несуществующего (D-005). */
+/** Чужое событие неотличимо от несуществующего (D-005). */
 async function ownEvent(db: Queryable, id: string, organizerId: number) {
   if (!isUuid(id)) return undefined;
-  const [event] = await db
-    .select()
-    .from(events)
-    .where(and(eq(events.id, id), eq(events.organizerId, organizerId)));
+  const [event] = await db.select().from(events).where(and(eq(events.id, id), eq(events.organizerId, organizerId)));
   return event;
 }
 
@@ -97,18 +96,42 @@ export const organizerRoutes = new Hono<Env>()
       200,
     );
   })
+  .get("/events/:id/registrations", async (c) => {
+    const { db, user } = c.var;
+    const event = await ownEvent(db, c.req.param("id"), user.id);
+    if (!event) return apiError(c, 404, "not_found");
+    const list = await eventRegistrations(db, event.id);
+    return c.json(
+      {
+        registrations: list.map(({ row: r, waitlistPosition }) => ({
+          id: r.id,
+          firstName: r.firstName,
+          lastName: r.lastName,
+          email: r.email,
+          birthDate: r.birthDate,
+          ageOnEventDay: ageOnEventDay(r.birthDate, event),
+          belowMinAge: belowMinAge(r.birthDate, event),
+          status: r.status,
+          waitlistPosition,
+          confirmedAt: r.confirmedAt?.toISOString() ?? null,
+          checkedInAt: r.checkedInAt?.toISOString() ?? null,
+        })),
+      },
+      200,
+    );
+  })
   .patch("/events/:id", validate("json", eventPatchSchema), async (c) => {
-    const { db, clock, user } = c.var;
+    const { db, clock, config, user } = c.var;
     const id = c.req.param("id");
     const patch = c.req.valid("json");
     const now = clock.now();
     const event = await withTx(db, async (tx) => {
       const locked = isUuid(id) ? await lockEvent(tx, id) : undefined;
       if (!locked || locked.organizerId !== user.id) return undefined;
-      return updateEvent(tx, locked, patch, now);
+      return updateEvent(tx, locked, patch, { now, publicUrl: config.publicUrl });
     });
     if (!event) return apiError(c, 404, "not_found");
-    if ("error" in event) return apiError(c, 501, event.error);
+    if ("error" in event) return apiError(c, event.error === "event_started" ? 409 : 501, event.error);
     const counts = await countsFor(db, [event]);
     return c.json({ event: organizerEvent(event, now), counts: counts.get(event.id)! }, 200);
   })

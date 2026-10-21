@@ -17,7 +17,8 @@ const messages: Record<string, string> = {
   already_checked_in: "Вы уже прошли на событие — отказаться нельзя",
   ticket_cancelled: "Билет отменён",
   ticket_not_found: "Билет не найден",
-  not_implemented: "Перенос события и изменение лимита мест пока недоступны",
+  event_started: "Событие уже началось — это действие недоступно",
+  not_implemented: "Перенос события пока недоступен",
 };
 
 /** Код ошибки API → русский текст (D-024). */

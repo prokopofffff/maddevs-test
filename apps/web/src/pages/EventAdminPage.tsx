@@ -8,13 +8,13 @@ import { PageSkeleton } from "../components/Skeleton.tsx";
 import { Toast } from "../components/Toast.tsx";
 import { errorText } from "../errors.ts";
 import { formatEventTime } from "../format.ts";
+import { EventStats } from "./admin/EventStats.tsx";
+import { ParticipantList } from "./admin/ParticipantList.tsx";
 import { NotFoundPage } from "./NotFoundPage.tsx";
 
-const percent = (part: number, whole: number) => `${whole > 0 ? Math.min(100, Math.round((part / whole) * 100)) : 0}%`;
-
 /**
- * S8-EventAdmin: плашки, ссылка для участников, пустой список участников, «Редактировать», «Открыть чекин».
- * Live-обновление и таблица участников приходят своими тикетами.
+ * S8-EventAdmin: плашки, ссылка для участников, список участников с фильтром, «Редактировать», «Открыть чекин».
+ * Данные — при загрузке; live и «Снять отметку» приходят своими тикетами.
  */
 export function EventAdminPage() {
   const { id = "" } = useParams();
@@ -76,44 +76,7 @@ export function EventAdminPage() {
             Регистрации
           </h2>
         </div>
-        <div className="stats">
-          <div className="stat">
-            <p className="stat__label">Подтверждено</p>
-            <p className="stat__value">
-              {counts.confirmed} <span className="stat__total">из {counts.limit}</span>
-            </p>
-            <div
-              className="stat__bar"
-              role="progressbar"
-              aria-label="Занято мест"
-              aria-valuemin={0}
-              aria-valuemax={counts.limit}
-              aria-valuenow={counts.confirmed}
-            >
-              <span className="stat__bar-fill" style={{ width: percent(counts.confirmed, counts.limit) }} />
-            </div>
-          </div>
-          <div className="stat">
-            <p className="stat__label">Лист ожидания</p>
-            <p className="stat__value">{counts.waitlisted}</p>
-          </div>
-          <div className="stat">
-            <p className="stat__label">Пришло</p>
-            <p className="stat__value">
-              {counts.checkedIn} <span className="stat__total">из {counts.confirmed}</span>
-            </p>
-            <div
-              className="stat__bar"
-              role="progressbar"
-              aria-label="Пришло участников"
-              aria-valuemin={0}
-              aria-valuemax={counts.confirmed}
-              aria-valuenow={counts.checkedIn}
-            >
-              <span className="stat__bar-fill" style={{ width: percent(counts.checkedIn, counts.confirmed) }} />
-            </div>
-          </div>
-        </div>
+        <EventStats counts={counts} />
       </section>
       <div className="copy-link">
         <div className="field copy-link__field s8-copy">
@@ -134,13 +97,13 @@ export function EventAdminPage() {
           Скопировать
         </button>
       </div>
-      {registrationCount === 0 && (
-        <section className="stack" aria-labelledby="people-heading">
-          <div className="section-header">
-            <h2 className="heading heading--section" id="people-heading">
-              Участники
-            </h2>
-          </div>
+      <section className="stack" aria-labelledby="people-heading">
+        <div className="section-header">
+          <h2 className="heading heading--section" id="people-heading">
+            Участники
+          </h2>
+        </div>
+        {registrationCount === 0 ? (
           <div className="empty-state">
             <span className="empty-state__icon">
               <Icon name="calendar" />
@@ -151,8 +114,10 @@ export function EventAdminPage() {
               Скопировать ссылку
             </button>
           </div>
-        </section>
-      )}
+        ) : (
+          <ParticipantList eventId={e.id} timezone={e.timezone} minAge={e.minAge} />
+        )}
+      </section>
     </>
   );
 }

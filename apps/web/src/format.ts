@@ -21,13 +21,6 @@ export function formatWallTime(at: string, timeZone: string) {
   return `${parts.day} ${parts.month} ${parts.year}, ${parts.hour}:${parts.minute}`;
 }
 
-/** «19:04» — время на часах пояса события (D-015). */
-export function formatClock(at: string, timeZone: string) {
-  return new Intl.DateTimeFormat("ru-RU", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(
-    new Date(at),
-  );
-}
-
 /** «UTC+7», «UTC−3:30», «UTC» — смещение пояса в данный момент. */
 export function utcOffset(at: string | Date, timeZone: string) {
   const name = new Intl.DateTimeFormat("en-US", { timeZone, timeZoneName: "shortOffset" })
@@ -60,3 +53,7 @@ export function todayIso() {
 
 /** «0:45» — оставшиеся секунды таймера. */
 export const formatCountdown = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+
+/** «19:04» — время на часах пояса события. */
+export const formatClock = (at: string, timeZone: string) =>
+  new Intl.DateTimeFormat("ru-RU", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(at));
