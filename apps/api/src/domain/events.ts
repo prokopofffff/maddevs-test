@@ -59,6 +59,7 @@ export async function updateEvent(tx: Tx, event: EventRow, patch: EventPatch, no
     .set({
       title: patch.title ?? event.title,
       description: patch.description ?? event.description,
+      timezone: patch.timezone ?? event.timezone,
       minAge: patch.minAge === undefined ? event.minAge : patch.minAge,
       updatedAt: now,
     })

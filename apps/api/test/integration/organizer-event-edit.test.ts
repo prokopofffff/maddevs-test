@@ -29,4 +29,30 @@ describe("правка и удаление события", () => {
       minAge: 21,
     });
   });
+
+  it("после начала название, описание и возраст по-прежнему правятся", async () => {
+    const t = testApp({ now: "2026-11-01T09:00:00Z" });
+    const organizer = await signUpOrganizer(t.client());
+    const { id } = (await organizer.post("/api/organizer/events", eventInput())).body.event;
+    t.clock.set("2026-11-20T12:00:00Z"); // ровно момент начала
+
+    const res = await organizer.patch(`/api/organizer/events/${id}`, { title: "Запись митапа", minAge: null });
+
+    expect(res.status).toBe(200);
+    expect(res.body.event).toMatchObject({ title: "Запись митапа", minAge: null, started: true });
+  });
+
+  it("смена только пояса сохраняет момент начала", async () => {
+    const organizer = await signUpOrganizer(testApp().client());
+    const { id } = (await organizer.post("/api/organizer/events", eventInput())).body.event;
+
+    const res = await organizer.patch(`/api/organizer/events/${id}`, { timezone: "Europe/Moscow" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.event).toMatchObject({
+      startsAt: "2026-11-20T12:00:00.000Z",
+      startsLocal: "2026-11-20T15:00", // тот же момент в Москве (UTC+3)
+      timezone: "Europe/Moscow",
+    });
+  });
 });
