@@ -53,3 +53,7 @@ export function todayIso() {
 
 /** «0:45» — оставшиеся секунды таймера. */
 export const formatCountdown = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+
+/** «19:04» — время на часах пояса события. */
+export const formatClock = (at: string, timeZone: string) =>
+  new Intl.DateTimeFormat("ru-RU", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(at));
