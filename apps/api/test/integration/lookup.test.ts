@@ -93,4 +93,20 @@ describe("вход в свою регистрацию по email и коду", (
     expect(sixth.status).toBe(410);
     expect(sixth.body).toEqual({ error: "code_attempts_exceeded" });
   });
+
+  it("повторный ввод того же кода (двойной клик, две вкладки) снова открывает регистрацию", async () => {
+    const t = testApp();
+    const { eventId } = await createEvent(t);
+    const { token } = (await register(t, eventId)).body;
+    later(t, 60_000);
+    const { verificationId, code } = await receiveLookupCode(t, eventId);
+
+    const [a, b] = await Promise.all([
+      confirmCode(t.client(), verificationId, code),
+      confirmCode(t.client(), verificationId, code),
+    ]);
+
+    expect(a.body).toEqual({ result: "found", token });
+    expect(b.body).toEqual({ result: "found", token });
+  });
 });

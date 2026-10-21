@@ -283,7 +283,7 @@ Cookie `sid`: httpOnly, `SameSite=Lax`, `Path=/`, `Max-Age` 30 дней, `Secure
 3. Код неверный → `attempts + 1`, `code_invalid`.
 4. Код верный → `consumed_at`.
 
-Для `register` дальше идёт `allocate` (раздел 3). Для `lookup` возвращается неотменённая регистрация этого email либо `registration_not_found`.
+Для `register` дальше идёт `allocate` (раздел 3). Для `lookup` возвращается неотменённая регистрация этого email либо `registration_not_found`; повторный верный ввод того же кода `lookup` снова отвечает `found`, код на запрос уходит на любой email (D-048).
 
 `participantDataSchema` — общая для формы регистрации и формы исправления (D-031): имя и фамилия 1–100 после trim, `birthDate` — существующая дата от 1900-01-01. «Не в будущем» сервер проверяет по своим часам: `400 validation_failed` с `issues: [{path: "birthDate", message: "in_future"}]`; форма — атрибутом `max`.
 
