@@ -450,3 +450,9 @@
 - Сделано: [PR #76](https://github.com/prokopofffff/maddevs-test/pull/76), закрывает #58. Критерии тикета выполнены: R2 зелёный; открытие личной ссылки ничего не отменяет (e2e: сканер без JS и браузер); повторный отказ без второго письма; после начала отказ закрыт, за секунду до начала повышает, страница без кнопки отказа; после отказа — новая регистрация. SPEC не менялся.
 - Проверка: CI run 39573565599 на `afe97e6`, job `check`: typecheck и lint чистые, `Test Files 10 passed`, `Tests 52 passed`. E2e в CI не идёт (D-047), локально `pnpm e2e` → 2 passed.
 - Дальше: ревью PR.
+
+## 2026-10-21 16:25 +0700 — Удаление веток после слияния PR
+- Сделано: в репозитории включена настройка «Automatically delete head branches» (D-050). С `origin` удалены 20 веток слитых PR; у каждой вершина совпадала с `headRefOid` слитого PR. Код не менялся.
+- Проверка: `gh api -X PATCH repos/prokopofffff/maddevs-test -f delete_branch_on_merge=true` → `true`; `git ls-remote --heads origin` → `main` и `prokopofffff/wayfinder-github-issue` (без слитого PR, оставлена).
+- Решения: D-050
+- Дальше: слияние этого PR — проверка, что его ветка удалится сама.
