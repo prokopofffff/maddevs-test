@@ -28,3 +28,6 @@ button.back-link { padding: 0; border: 0; background: none; font: inherit; font-
 
 /* Экран чекина: у `.checkin` шаблона `min-height`, и сетка растягивает строки — при коротком исходе поле кода съезжает вниз. */
 .checkin { align-content: start; }
+
+/* «Снять отметку» рядом со временем прихода в списке участников (D-023). */
+.uncheck-button { margin-left: var(--space-3); }

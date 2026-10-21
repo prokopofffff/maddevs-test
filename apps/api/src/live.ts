@@ -117,7 +117,8 @@ export function createLive(db: Db): Live {
       topics.forEach((topic) => clearTimeout(topic.timer));
       topics.clear();
       await listening?.catch(() => {});
-      await unlisten?.();
+      // `UNLISTEN` на оборванном соединении падает — слушать там уже нечего.
+      await unlisten?.().catch(() => {});
     },
   };
 }

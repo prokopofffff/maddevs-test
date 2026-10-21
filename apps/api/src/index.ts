@@ -48,13 +48,18 @@ const server = serve({ fetch: app.fetch, port: env.port }, ({ port }) => {
 });
 
 const shutdown = () => {
+  // Остановка live закрывает открытые SSE-потоки, иначе `close` ждал бы их вечно.
+  const liveStopped = live.stop();
   server.close(async () => {
-    await outbox.stop();
+    await Promise.all([outbox.stop(), liveStopped]);
     await db.$client.end({ timeout: 5 });
     process.exit(0);
   });
-  // Открытые SSE-потоки закрываются сами по остановке live, иначе `close` ждал бы их вечно.
-  void live.stop();
+  if (!("closeIdleConnections" in server)) return;
+  // Соединение закончившегося потока браузер держит keep-alive и переподключается по нему же — закрываем.
+  void liveStopped.then(() => server.closeIdleConnections());
+  // Что не закончилось за 5 с, обрываем: иначе `close` ждёт без конца.
+  setTimeout(() => server.closeAllConnections(), 5000).unref();
 };
 process.on("SIGTERM", shutdown);
 process.on("SIGINT", shutdown);

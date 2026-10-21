@@ -156,6 +156,8 @@ export const organizerRoutes = new Hono<Env>()
     const { db, live, user } = c.var;
     const event = await ownEvent(db, c.req.param("id"), user.id);
     if (!event) return apiError(c, 404, "not_found");
+    // Процесс останавливается: новый поток не открываем, `EventSource` переподключится к следующему.
+    if (live.signal.aborted) return apiError(c, 503, "shutting_down");
     c.header("X-Accel-Buffering", "no");
     return streamSSE(c, async (stream) => {
       await stream.write("retry: 3000\n\n");

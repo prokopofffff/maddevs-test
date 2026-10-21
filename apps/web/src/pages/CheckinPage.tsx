@@ -3,12 +3,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 import { api, ApiError, client } from "../api.ts";
-import { ErrorBanner } from "../components/Banner.tsx";
+import { ErrorBanner, OfflineBanner } from "../components/Banner.tsx";
 import { Icon } from "../components/Icon.tsx";
 import { PageSkeleton } from "../components/Skeleton.tsx";
 import { StatusBadge } from "../components/StatusBadge.tsx";
 import { errorText } from "../errors.ts";
 import { formatClock, formatDate, plural } from "../format.ts";
+import { useLiveCounts } from "../live.ts";
 import { NotFoundPage } from "./NotFoundPage.tsx";
 
 interface Card {
@@ -29,8 +30,8 @@ const percent = (part: number, whole: number) => `${whole > 0 ? Math.min(100, Ma
 
 /**
  * S9-Checkin: код → Enter → карточка участника → «Пропустить» (Enter) → «Отмечен» → фокус снова в поле (D-023).
- * Красные исходы — «Уже прошёл в ЧЧ:ММ», «Билет отменён», «Билет не найден». Строка «Пришло N из M»
- * перечитывается после каждой отметки; live-обновление от соседнего входа — тикет «R5, часть 2».
+ * Красные исходы — «Уже прошёл в ЧЧ:ММ», «Билет отменён», «Билет не найден». Строка «Пришло N из M» — live,
+ * с чекинами соседнего входа (D-021); при обрыве — «Нет связи» и последние цифры.
  */
 export function CheckinPage() {
   const { id = "" } = useParams();
@@ -49,6 +50,7 @@ export function CheckinPage() {
     queryKey: eventKey,
     queryFn: () => api(client.api.organizer.events[":id"].$get({ param: { id } })),
   });
+  const { offline } = useLiveCounts(id);
   const timezone = event.data?.event.timezone ?? "UTC";
 
   /** Красный исход: поле снова в фокусе, набранное выделено — следующий код его заменит. */
@@ -112,6 +114,7 @@ export function CheckinPage() {
             <Icon name="back" />К событию
           </Link>
         </div>
+        {offline && <OfflineBanner />}
         <p className="checkin__event">{e.title}</p>
         <p className="checkin__counter">
           Пришло {counts.checkedIn} из {counts.confirmed}
