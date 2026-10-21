@@ -54,7 +54,7 @@ describe("R2 — лист ожидания и повышение", () => {
     expect(cancelled.map((m) => m.to)).toEqual(["a@example.com"]);
     const letters = t.mailbox.ofKind("promoted");
     expect(letters.map((m) => m.to)).toEqual(["b@example.com"]);
-    expect(letters[0]!.subject).toContain("Освободилось место");
+    expect(letters[0]!.subject).toContain("освободилось место");
     for (const body of [letters[0]!.text, letters[0]!.html]) {
       expect(body).toContain(shown(promoted.ticketCode));
       expect(body).toContain(`${PUBLIC_URL}/r/${b.token}`);
