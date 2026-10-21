@@ -61,7 +61,11 @@ export function MyEventsPage() {
                 </p>
               </div>
               <p className="event-item__counts">
-                Подтверждено {e.counts.confirmed} из {e.counts.limit} · Лист ожидания {e.counts.waitlisted}
+                Подтверждено {e.counts.confirmed} из {e.counts.limit}
+                {e.counts.confirmed > e.counts.limit && (
+                  <span className="warn-mark warn-mark--inline">{e.counts.confirmed - e.counts.limit} сверх лимита</span>
+                )}
+                {" · "}Лист ожидания {e.counts.waitlisted} · Пришло {e.counts.checkedIn} из {e.counts.confirmed}
               </p>
               <Icon name="chevronRight" className="event-item__chevron s6-chevron" />
             </li>
