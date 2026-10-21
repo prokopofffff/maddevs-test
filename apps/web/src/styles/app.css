@@ -9,8 +9,12 @@
 }
 
 .toast--floating { position: fixed; }
+.dialog-backdrop { position: fixed; }
 
 .page-loading { padding: var(--space-8) var(--space-5); }
 
 /* «Изменить email» — кнопка, а не ссылка (возврат к форме без перехода): выглядит как `.back-link` шаблона. */
 button.back-link { padding: 0; border: 0; background: none; font: inherit; font-weight: var(--font-weight-semibold); cursor: pointer; }
+
+/* После начала дата и лимит только для чтения (D-033): выглядят как `:disabled` шаблона, но значение остаётся в форме. */
+.form .field__control[readonly] { border-color: var(--color-border); background: var(--color-surface-muted); color: var(--color-disabled-ink); cursor: not-allowed; }
