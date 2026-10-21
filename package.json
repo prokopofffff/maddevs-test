@@ -11,6 +11,7 @@
     "build": "pnpm --filter @app/web build",
     "start": "pnpm --filter @app/api start",
     "test": "pnpm --filter @app/api test",
+    "e2e": "pnpm --filter @app/e2e test",
     "lint": "eslint .",
     "typecheck": "pnpm -r typecheck",
     "db:generate": "pnpm --filter @app/api db:generate"
