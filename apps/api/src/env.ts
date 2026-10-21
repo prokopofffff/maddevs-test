@@ -5,5 +5,8 @@ export function readEnv(env: NodeJS.ProcessEnv = process.env) {
     port: Number(env.PORT ?? 3000),
     publicUrl: (env.PUBLIC_URL ?? "http://localhost:3000").replace(/\/+$/, ""),
     cookieSecure: env.COOKIE_SECURE === "1",
+    smtpHost: env.SMTP_HOST ?? "localhost",
+    smtpPort: Number(env.SMTP_PORT ?? 1025),
+    mailFrom: env.MAIL_FROM ?? "Регистрация <no-reply@localhost>",
   };
 }

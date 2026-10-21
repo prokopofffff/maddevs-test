@@ -3,13 +3,14 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { Clock } from "./clock.ts";
 import type { Db } from "./db/client.ts";
 import type { SessionUser } from "./auth/session.ts";
-import type { AppConfig } from "./app.ts";
+import type { AppConfig, OutboxWaker } from "./app.ts";
 
 export interface Env {
   Variables: {
     db: Db;
     clock: Clock;
     config: AppConfig;
+    outbox: OutboxWaker;
     user: SessionUser;
   };
 }

@@ -1,6 +1,6 @@
-import { inArray, sql } from "drizzle-orm";
-import type { Db } from "../db/client.ts";
+import { eq, inArray, sql } from "drizzle-orm";
 import { events, registrations } from "../db/schema.ts";
+import type { Queryable } from "../db/tx.ts";
 
 export type EventRow = typeof events.$inferSelect;
 
@@ -15,7 +15,7 @@ export interface Counts {
 export const started = (event: Pick<EventRow, "startsAt">, now: Date) => now >= event.startsAt;
 
 /** Счётчики не хранятся: один запрос по `(event_id, status)` (D-011). */
-export async function countsFor(db: Db, list: Pick<EventRow, "id" | "seatLimit">[]): Promise<Map<string, Counts>> {
+export async function countsFor(db: Queryable, list: Pick<EventRow, "id" | "seatLimit">[]): Promise<Map<string, Counts>> {
   const result = new Map<string, Counts>(
     list.map((e) => [e.id, { confirmed: 0, limit: e.seatLimit, waitlisted: 0, checkedIn: 0 }]),
   );
@@ -40,6 +40,12 @@ export async function countsFor(db: Db, list: Pick<EventRow, "id" | "seatLimit">
 }
 
 /** Лимит минус подтверждённые, не меньше нуля; ноль при непустом листе ожидания и после начала (D-026, D-032, D-033). */
+/** Строка события под блокировкой: первый шаг любой транзакции, меняющей места (D-011). */
+export async function lockEvent(tx: Queryable, id: string): Promise<EventRow | undefined> {
+  const [event] = await tx.select().from(events).where(eq(events.id, id)).for("update");
+  return event;
+}
+
 export function freeSeats(event: Pick<EventRow, "startsAt">, counts: Counts, now: Date) {
   if (started(event, now) || counts.waitlisted > 0) return 0;
   return Math.max(0, counts.limit - counts.confirmed);

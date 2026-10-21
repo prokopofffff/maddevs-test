@@ -330,3 +330,10 @@
 - Проверка: `pnpm test` → R1 3 failed (`verification 404: {"error":"not_found"}` — маршрута нет), остальные 16 passed; `pnpm typecheck` и `pnpm lint` чистые.
 - Решения: D-046
 - Дальше: схема, коды, `allocate`, outbox.
+
+## 2026-10-21 12:14 +0700 — R1: коды, распределение, outbox — тест зелёный
+- Сделано: миграция `0001_verifications_and_outbox` (`email_verifications`, `email_outbox` по SPEC). `withTx` (повтор на `40001`, `40P01`, коллизии кода билета; код Postgres достаётся из `cause` у `DrizzleQueryError`). `issueVerification`: порядок проверок SPEC, гашение прежних кодов, письмо `code` в той же транзакции, `outbox.wake()` после коммита. `confirmVerification`: строка кода `FOR UPDATE`, попытки, повтор кода → `existing` (D-046), затем `allocate` под `lockEvent`. `GET /registrations/:token`. Письма `code` и `confirmed` — табличная вёрстка по рамке `S10-Email`. `dispatchOutbox(db, transport, now)`: захват до 20 строк одним `UPDATE … WHERE id IN (SELECT … FOR UPDATE SKIP LOCKED)` с арендой 2 мин, backoff 30 с·2^(n−1) до 1 ч, `failed_at` после 10. Цикл в процессе: тик 2 с, пинок, не больше одного прохода; SMTP через nodemailer 10.
+- Заглушка: пока мест нет — `409 no_seats`, транзакция откатывается, код не тратится. Уходит с тикетом R3.
+- Отклонения от контракта: в `GET /registrations/:token` добавлен `email` (его показывает S4a), `ticketCode` — `null` у неподтверждённых; дата рождения в будущем — `400 validation_failed` с `issues: [{path: "birthDate", message: "in_future"}]`: схема общая с фронтом и не знает часов сервера. SPEC поправлен.
+- Проверка: `pnpm test` → 6 файлов, 35 passed (R1 — 3; коды, возраст на границе дня рождения в поясе события, после начала, личная ссылка — 14; ◇ outbox: backoff, истёкшая аренда через зависший транспорт, `failed_at` — 3); три прогона подряд зелёные. `pnpm typecheck`, `pnpm lint` чистые. Живой процесс на своей базе с SMTP в Mailpit (порт 1027): signup → событие → код → confirm через curl, в Mailpit «Код подтверждения: …» и «Ваш билет: Смоук», `Message-ID` `<outbox-2@localhost>`.
+- Дальше: экраны участника — форма, ввод кода, результат, `/r/:token`.

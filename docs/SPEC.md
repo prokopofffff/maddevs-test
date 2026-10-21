@@ -265,7 +265,7 @@ Cookie `sid`: httpOnly, `SameSite=Lax`, `Path=/`, `Max-Age` 30 дней, `Secure
 | `GET /events/:id` | — | `200 {id, title, description, startsAt, timezone, minAge, freeSeats, started}` | `404` |
 | ★ `POST /events/:id/verifications` | `verificationRequestSchema`: `{purpose: "register", email, firstName, lastName, birthDate}` или `{purpose: "lookup", email}` | `201 {verificationId, expiresAt, resendAfter}` | `409 registration_closed` (только `register`), `422 below_min_age {minAge}`, `429 code_resend_too_soon {retryAfter}` |
 | ★ `POST /verifications/:id/confirm` | `confirmCodeSchema {code}` | `register`: `200 {result: "confirmed" \| "waitlisted" \| "existing", token, status, waitlistPosition?}`; `lookup`: `200 {result: "found", token}` | `400 code_invalid {attemptsLeft}`, `410 code_expired`, `410 code_attempts_exceeded`, `409 registration_closed`, `404 registration_not_found` (`lookup`) |
-| `GET /registrations/:token` | — | `200 {event: {id, title, startsAt, timezone, started}, status, firstName, lastName, birthDate, ticketCode?, waitlistPosition?, checkedInAt, cancelledAt, pendingCorrection?}` | `404` |
+| `GET /registrations/:token` | — | `200 {event: {id, title, startsAt, timezone, started}, status, email, firstName, lastName, birthDate, ticketCode, waitlistPosition?, checkedInAt, cancelledAt, pendingCorrection?}`; `ticketCode` — `null`, если регистрация не подтверждена | `404` |
 | ★ `POST /registrations/:token/cancel` | — | `200 {status: "cancelled"}` | `409 event_started`, `409 already_checked_in` |
 | ★ `POST /registrations/:token/corrections` | `participantDataSchema {firstName, lastName, birthDate}` | `201 {pendingCorrection}` | `409 event_started`, `409 registration_cancelled` |
 
@@ -285,7 +285,7 @@ Cookie `sid`: httpOnly, `SameSite=Lax`, `Path=/`, `Max-Age` 30 дней, `Secure
 
 Для `register` дальше идёт `allocate` (раздел 3). Для `lookup` возвращается неотменённая регистрация этого email либо `registration_not_found`.
 
-`participantDataSchema` — общая для формы регистрации и формы исправления (D-031): имя и фамилия 1–100 после trim, `birthDate` от 1900-01-01 и не в будущем.
+`participantDataSchema` — общая для формы регистрации и формы исправления (D-031): имя и фамилия 1–100 после trim, `birthDate` — существующая дата от 1900-01-01. «Не в будущем» сервер проверяет по своим часам: `400 validation_failed` с `issues: [{path: "birthDate", message: "in_future"}]`; форма — атрибутом `max`.
 
 ### Поддержка (D-030, D-031)
 
