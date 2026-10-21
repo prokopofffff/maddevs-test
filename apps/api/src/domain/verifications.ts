@@ -108,7 +108,8 @@ export async function confirmVerification(db: Db, id: number, code: string, ctx:
     await tx.update(emailVerifications).set({ consumedAt: ctx.now }).where(eq(emailVerifications.id, id));
     if (verification.purpose === "lookup") {
       const registration = await activeRegistration(tx, verification.eventId, verification.email);
-      return { result: "found" as const, registration: registration! };
+      if (!registration) return { error: "registration_not_found" as const };
+      return { result: "found" as const, registration };
     }
     const event = await lockEvent(tx, verification.eventId);
     // Событие удалено вместе с кодами каскадом: до сюда не дойдём, но тип требует проверки.

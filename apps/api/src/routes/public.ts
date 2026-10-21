@@ -87,6 +87,7 @@ export const publicRoutes = new Hono<Env>()
     if ("error" in confirmed) {
       switch (confirmed.error) {
         case "not_found":
+        case "registration_not_found":
           return apiError(c, 404, confirmed.error);
         case "code_invalid":
           return apiError(c, 400, confirmed.error, { attemptsLeft: confirmed.attemptsLeft });

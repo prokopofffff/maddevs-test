@@ -16,4 +16,16 @@ describe("вход в свою регистрацию по email и коду", (
     expect(res.body).toEqual({ result: "found", token });
     expect((await t.client().get(`/api/registrations/${token}`)).body.status).toBe("confirmed");
   });
+
+  it("регистрации на этот email нет — код всё равно уходит, после кода registration_not_found", async () => {
+    const t = testApp();
+    const { eventId } = await createEvent(t);
+    await register(t, eventId);
+
+    const { verificationId, code } = await receiveLookupCode(t, eventId, "boris@example.com");
+    const res = await confirmCode(t.client(), verificationId, code);
+
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({ error: "registration_not_found" });
+  });
 });
