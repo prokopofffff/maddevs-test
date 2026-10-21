@@ -1,4 +1,7 @@
+import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
+import { registrations } from "../../src/db/schema.ts";
+import { testDb } from "../setup/worker-db.ts";
 import { eventInput, signUpOrganizer } from "../support/organizer.ts";
 import { createEvent, register } from "../support/participant.ts";
 import { testApp } from "../support/test-app.ts";
@@ -114,5 +117,39 @@ describe("правка и удаление события", () => {
     expect(res.status).toBe(409);
     expect(res.body).toEqual({ error: "event_has_registrations" });
     expect((await organizer.get(`/api/organizer/events/${eventId}`)).body.registrationCount).toBe(1);
+  });
+
+  it("отменённая регистрация тоже не даёт удалить событие", async () => {
+    const t = testApp();
+    const { eventId, organizer } = await createEvent(t);
+    await register(t, eventId);
+    // Отказа по личной ссылке ещё нет (тикет «R2 — отказ по личной ссылке…»): отменяем на шаге подготовки.
+    await testDb()
+      .update(registrations)
+      .set({ status: "cancelled", cancelledAt: t.clock.now() })
+      .where(eq(registrations.eventId, eventId));
+
+    const res = await organizer.delete(`/api/organizer/events/${eventId}`);
+
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({ error: "event_has_registrations" });
+  });
+
+  it("чужое событие — 404 на правку и удаление, событие не меняется", async () => {
+    const { client } = testApp();
+    const anna = await signUpOrganizer(client());
+    const boris = await signUpOrganizer(client());
+    const { id } = (await anna.post("/api/organizer/events", eventInput())).body.event;
+
+    const patched = await boris.patch(`/api/organizer/events/${id}`, { title: "Чужое" });
+    const deleted = await boris.delete(`/api/organizer/events/${id}`);
+
+    for (const res of [patched, deleted]) {
+      expect(res.status).toBe(404);
+      expect(res.body).toEqual({ error: "not_found" });
+    }
+    expect((await anna.get(`/api/organizer/events/${id}`)).body.event.title).toBe("Митап про Postgres");
+    expect((await boris.patch("/api/organizer/events/not-a-uuid", { title: "x" })).status).toBe(404);
+    expect((await boris.delete("/api/organizer/events/not-a-uuid")).status).toBe(404);
   });
 });
