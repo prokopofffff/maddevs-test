@@ -20,3 +20,6 @@ button.back-link { padding: 0; border: 0; background: none; font: inherit; font-
 
 /* После начала дата и лимит только для чтения (D-033): выглядят как `:disabled` шаблона, но значение остаётся в форме. */
 .form .field__control[readonly] { border-color: var(--color-border); background: var(--color-surface-muted); color: var(--color-disabled-ink); cursor: not-allowed; }
+
+/* Экран чекина: у `.checkin` шаблона `min-height`, и сетка растягивает строки — при коротком исходе поле кода съезжает вниз. */
+.checkin { align-content: start; }

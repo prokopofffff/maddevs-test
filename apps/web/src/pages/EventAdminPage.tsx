@@ -13,8 +13,8 @@ import { NotFoundPage } from "./NotFoundPage.tsx";
 const percent = (part: number, whole: number) => `${whole > 0 ? Math.min(100, Math.round((part / whole) * 100)) : 0}%`;
 
 /**
- * S8-EventAdmin: плашки, ссылка для участников, пустой список участников, «Редактировать».
- * Live-обновление, таблица участников и «Открыть чекин» приходят своими тикетами.
+ * S8-EventAdmin: плашки, ссылка для участников, пустой список участников, «Редактировать», «Открыть чекин».
+ * Live-обновление и таблица участников приходят своими тикетами.
  */
 export function EventAdminPage() {
   const { id = "" } = useParams();
@@ -64,6 +64,9 @@ export function EventAdminPage() {
         <div className="page-header__actions">
           <Link className="button button--secondary" to={`/organizer/events/${e.id}/edit`}>
             Редактировать
+          </Link>
+          <Link className="button button--primary" to={`/organizer/events/${e.id}/checkin`}>
+            Открыть чекин
           </Link>
         </div>
       </div>
