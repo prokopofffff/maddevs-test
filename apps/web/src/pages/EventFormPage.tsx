@@ -12,7 +12,7 @@ import { Icon } from "../components/Icon.tsx";
 import { PageSkeleton } from "../components/Skeleton.tsx";
 import { Toast } from "../components/Toast.tsx";
 import { errorText } from "../errors.ts";
-import { formatEventTime, formatWallTime, utcOffset } from "../format.ts";
+import { formatEventTime, formatWallTime, plural, utcOffset } from "../format.ts";
 import { myEventsKey } from "./MyEventsPage.tsx";
 import { NotFoundPage } from "./NotFoundPage.tsx";
 
@@ -78,6 +78,8 @@ function EventForm({ loaded }: { loaded?: OrganizerEvent }) {
   const [toast, setToast] = useState<string | null>(null);
   const hideToast = useCallback(() => setToast(null), []);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // Правка с лимитом ниже подтверждённых ждёт подтверждения в диалоге (D-032).
+  const [overLimit, setOverLimit] = useState<{ patch: EventPatch; excess: number } | null>(null);
   const timezones = useMemo(() => {
     const now = new Date();
     return Intl.supportedValuesOf("timeZone").map((tz) => ({ tz, label: `${tz.replaceAll("_", " ")} (${utcOffset(now, tz)})` }));
@@ -100,13 +102,16 @@ function EventForm({ loaded }: { loaded?: OrganizerEvent }) {
   const update = useMutation({
     mutationFn: (patch: EventPatch) =>
       api(client.api.organizer.events[":id"].$patch({ param: { id: loaded!.event.id }, json: patch })),
-    onSuccess: ({ event }) => {
-      const next = { ...loaded!, event };
+    onSuccess: ({ event, counts }) => {
+      setOverLimit(null);
+      const next = { ...loaded!, event, counts };
       queryClient.setQueryData(eventKey(event.id), next);
       queryClient.invalidateQueries({ queryKey: myEventsKey });
       form.reset(valuesOf(next));
       setToast("Изменения сохранены");
     },
+    // Событие могло начаться, пока форма была открыта: перечитанное событие заблокирует дату и лимит (D-033).
+    onError: () => queryClient.invalidateQueries({ queryKey: eventKey(loaded!.event.id) }),
   });
   const remove = useMutation({
     mutationFn: () => api(client.api.organizer.events[":id"].$delete({ param: { id: loaded!.event.id } })),
@@ -152,8 +157,12 @@ function EventForm({ loaded }: { loaded?: OrganizerEvent }) {
     },
   });
   const submit = form.handleSubmit((values) => {
-    if (loaded) update.mutate(patchOf(values, dirtyFields));
-    else create.mutate(values);
+    if (!loaded) return create.mutate(values);
+    const patch = patchOf(values, dirtyFields);
+    // Число подтверждённых — из последнего снимка; устаревшее безопасно, сохранение ничего не отнимает (D-032).
+    const excess = patch.limit === undefined ? 0 : loaded.counts.confirmed - patch.limit;
+    if (excess > 0) setOverLimit({ patch, excess });
+    else update.mutate(patch);
   });
 
   return (
@@ -319,6 +328,21 @@ function EventForm({ loaded }: { loaded?: OrganizerEvent }) {
           <p className="text-small text-muted">Время всегда показывается с часовым поясом события — где бы ни был участник.</p>
         </aside>
       </div>
+      {overLimit && (
+        <ConfirmDialog
+          title={`${overLimit.excess} ${plural(overLimit.excess, ["подтверждённый", "подтверждённых", "подтверждённых"])} сверх лимита`}
+          text={`Билеты у всех останутся, новых мест не будет, пока подтверждённых не станет меньше ${overLimit.patch.limit}. Сохранить?`}
+          confirmLabel={update.isPending ? "Сохраняем…" : "Сохранить"}
+          cancelLabel="Изменить лимит"
+          pending={update.isPending}
+          error={update.isError ? errorText(update.error) : undefined}
+          onConfirm={() => update.mutate(overLimit.patch)}
+          onCancel={() => {
+            setOverLimit(null);
+            update.reset();
+          }}
+        />
+      )}
       {confirmDelete && loaded && (
         <ConfirmDialog
           title="Удалить событие?"
