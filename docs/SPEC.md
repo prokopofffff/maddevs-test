@@ -250,7 +250,7 @@ Cookie `sid`: httpOnly, `SameSite=Lax`, `Path=/`, `Max-Age` 30 дней, `Secure
 | `GET /organizer/events/:id/live` | — | SSE (раздел 7) | `404` |
 | `GET /organizer/events/:id/tickets/:code` | — | `200 {registrationId, firstName, lastName, birthDate, ageOnEventDay, belowMinAge, status, checkedInAt}` | `404 ticket_not_found` |
 | `POST /organizer/events/:id/checkin` | `checkinSchema {code}` | `200 {registrationId, firstName, lastName, checkedInAt}` | `409 already_checked_in {firstName, lastName, checkedInAt}`, `409 ticket_cancelled`, `404 ticket_not_found` |
-| `DELETE /organizer/events/:id/checkin/:registrationId` | — | `204` | — |
+| `DELETE /organizer/events/:id/checkin/:registrationId` | — | `204`, идемпотентно; регистрация другого события не трогается | `404` |
 
 `counts` = `{confirmed, limit, waitlisted, checkedIn}`. `registrationCount` — число строк регистраций, включая отменённые: по нему форма решает, показывать ли «Удалить» (D-035). Список регистраций отдаёт всех, включая отменённых, в порядке «подтверждённые по `confirmed_at` → лист ожидания по номеру → отменённые по `cancelled_at`» (D-051); фильтр — на клиенте.
 

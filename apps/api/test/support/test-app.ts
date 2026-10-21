@@ -1,8 +1,10 @@
 import { drizzle } from "drizzle-orm/postgres-js";
+import { onTestFinished } from "vitest";
 import { createApp } from "../../src/app.ts";
 import type { Clock } from "../../src/clock.ts";
 import * as schema from "../../src/db/schema.ts";
 import { createJobs } from "../../src/jobs.ts";
+import { createLive } from "../../src/live.ts";
 import { testDb } from "../setup/worker-db.ts";
 import { Mailbox } from "./mailbox.ts";
 
@@ -77,6 +79,7 @@ export class Client {
 /**
  * Тестовая сборка приложения (D-041): база воркера, подставные часы, фейковый транспорт.
  * Письма уходят только по `runJobs(now)` — пинок после коммита в тестах ничего не делает.
+ * Live слушает базу воркера, только пока тесту нужен поток, и отписывается в конце теста.
  * `queries` собирает SQL, который приложение отправило в базу, — для проверки `.for('update')` (D-009).
  */
 export function testApp(options: { now?: string; queries?: string[] } = {}) {
@@ -86,7 +89,9 @@ export function testApp(options: { now?: string; queries?: string[] } = {}) {
     : testDb();
   const clock = new TestClock(new Date(options.now ?? "2026-11-01T09:00:00Z"));
   const mailbox = new Mailbox();
-  const app = createApp({ db, clock, config: { publicUrl: PUBLIC_URL, cookieSecure: false } });
+  const live = createLive(db);
+  onTestFinished(() => live.stop());
+  const app = createApp({ db, clock, live, config: { publicUrl: PUBLIC_URL, cookieSecure: false } });
   const { runJobs } = createJobs({ db, transport: mailbox });
   return { app, clock, mailbox, runJobs, client: () => new Client(app) };
 }

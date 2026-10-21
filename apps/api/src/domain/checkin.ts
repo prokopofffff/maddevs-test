@@ -15,6 +15,14 @@ export async function findTicket(db: Queryable, eventId: string, input: string):
   return row;
 }
 
+/** «Снять отметку» (D-022, D-023): идемпотентно, регистрация другого события не трогается. */
+export async function uncheck(db: Queryable, eventId: string, registrationId: number) {
+  await db
+    .update(registrations)
+    .set({ checkedInAt: null })
+    .where(and(eq(registrations.id, registrationId), eq(registrations.eventId, eventId)));
+}
+
 export type CheckinResult =
   | { registration: RegistrationRow; error?: undefined }
   | { error: "already_checked_in"; registration: RegistrationRow }

@@ -1,10 +1,11 @@
 import { and, asc, count, eq } from "drizzle-orm";
 import type { Queryable } from "../db/tx.ts";
 import { Hono } from "hono";
+import { streamSSE } from "hono/streaming";
 import { events, registrations } from "../db/schema.ts";
 import { withTx } from "../db/tx.ts";
 import { ageOnEventDay, belowMinAge } from "../domain/age.ts";
-import { checkIn, findTicket } from "../domain/checkin.ts";
+import { checkIn, findTicket, uncheck } from "../domain/checkin.ts";
 import { countsFor, deleteEvent, lockEvent, started, updateEvent, type EventRow } from "../domain/events.ts";
 import { eventRegistrations } from "../domain/registrations.ts";
 import { apiError, type Env } from "../http.ts";
@@ -26,6 +27,9 @@ const organizerEvent = (e: EventRow, now: Date) => ({
   minAge: e.minAge,
   started: started(e, now),
 });
+
+/** Пинг-комментарий держит соединение через прокси и даёт браузеру заметить обрыв (D-020). */
+const PING_MS = 20_000;
 
 /** Чужое событие неотличимо от несуществующего (D-005). */
 async function ownEvent(db: Queryable, id: string, organizerId: number) {
@@ -147,6 +151,31 @@ export const organizerRoutes = new Hono<Env>()
     if (result) return apiError(c, 409, result.error);
     return c.body(null, 204);
   })
+  // Live-счётчики (SPEC §7): снимок при подключении и после каждого изменения, до закрытия вкладки.
+  .get("/events/:id/live", async (c) => {
+    const { db, live, user } = c.var;
+    const event = await ownEvent(db, c.req.param("id"), user.id);
+    if (!event) return apiError(c, 404, "not_found");
+    c.header("X-Accel-Buffering", "no");
+    return streamSSE(c, async (stream) => {
+      await stream.write("retry: 3000\n\n");
+      const unsubscribe = await live.subscribe(event.id, (counts) => {
+        void stream.writeSSE({ event: "counts", data: JSON.stringify(counts) });
+      });
+      await new Promise<void>((resolve) => {
+        const ping = setInterval(() => void stream.write(": ping\n\n"), PING_MS);
+        const done = () => {
+          clearInterval(ping);
+          live.signal.removeEventListener("abort", done);
+          unsubscribe();
+          resolve();
+        };
+        stream.onAbort(done);
+        live.signal.addEventListener("abort", done);
+        if (stream.aborted || live.signal.aborted) done();
+      });
+    });
+  })
   // Карточка билета на входе: только чтение, отметку ставит `POST …/checkin` (D-022, D-023).
   .get("/events/:id/tickets/:code", async (c) => {
     const { db, user } = c.var;
@@ -195,4 +224,13 @@ export const organizerRoutes = new Hono<Env>()
       case "ticket_not_found":
         return apiError(c, 404, result.error);
     }
+  })
+  // «Снять отметку» в списке участников (D-023): после неё билет снова проходит чекин.
+  .delete("/events/:id/checkin/:registrationId", async (c) => {
+    const { db, user } = c.var;
+    const event = await ownEvent(db, c.req.param("id"), user.id);
+    if (!event) return apiError(c, 404, "not_found");
+    const registrationId = Number(c.req.param("registrationId"));
+    if (Number.isSafeInteger(registrationId) && registrationId > 0) await uncheck(db, event.id, registrationId);
+    return c.body(null, 204);
   });

@@ -8,6 +8,7 @@ import { systemClock } from "./clock.ts";
 import { createDb, runMigrations } from "./db/client.ts";
 import { readEnv } from "./env.ts";
 import { createJobs } from "./jobs.ts";
+import { createLive } from "./live.ts";
 import { createOutboxRunner } from "./mail/outbox.ts";
 import { smtpTransport } from "./mail/smtp.ts";
 
@@ -16,6 +17,9 @@ const db = createDb(env.databaseUrl);
 
 // Миграции — до `listen` (D-009).
 await runMigrations(db);
+// Слушатель live-счётчиков — до циклов и `serve` (SPEC §3, «Порядок старта»).
+const live = createLive(db);
+await live.start();
 
 const transport = smtpTransport({
   host: env.smtpHost,
@@ -28,7 +32,7 @@ const jobs = createJobs({ db, transport });
 const outbox = createOutboxRunner(() => jobs.dispatch(systemClock.now()));
 outbox.start();
 
-const app = new Hono().route("/", createApp({ db, clock: systemClock, config: env, outbox }));
+const app = new Hono().route("/", createApp({ db, clock: systemClock, config: env, live, outbox }));
 
 // Один процесс отдаёт и API, и собранный фронт; остальные пути — SPA-фоллбэк на index.html (D-024).
 const webDist = fileURLToPath(new URL("../../web/dist", import.meta.url));
@@ -49,6 +53,8 @@ const shutdown = () => {
     await db.$client.end({ timeout: 5 });
     process.exit(0);
   });
+  // Открытые SSE-потоки закрываются сами по остановке live, иначе `close` ждал бы их вечно.
+  void live.stop();
 };
 process.on("SIGTERM", shutdown);
 process.on("SIGINT", shutdown);
