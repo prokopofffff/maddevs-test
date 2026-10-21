@@ -309,7 +309,7 @@ Cookie `sid`: httpOnly, `SameSite=Lax`, `Path=/`, `Max-Age` 30 дней, `Secure
 |---|---|---|---|---|
 | `code` | выдан код подтверждения | email из формы | `code:<verification_id>` | код, «действует 10 минут», название события |
 | `confirmed` | `allocate` → `confirmed` | участник | `confirmed:<registration_id>` | «Место ваше», время, код билета, личная ссылка |
-| `waitlisted` | `allocate` → `waitlisted` | участник | `waitlisted:<registration_id>` | номер в листе ожидания, время, личная ссылка |
+| `waitlisted` | `allocate` → `waitlisted` | участник | `waitlisted:<registration_id>` | номер в листе ожидания на момент записи, время, личная ссылка с текущим номером (D-047) |
 | `promoted` | повышение | участник | `promoted:<registration_id>` | «Освободилось место», время, код билета, личная ссылка |
 | `cancelled` | отказ | участник | `cancelled:<registration_id>` | подтверждение отказа |
 | `reminder` | проход напоминаний | подтверждённые | `reminder:<registration_id>:<reschedule_count>` | «Завтра в …», код билета, личная ссылка (D-018) |
