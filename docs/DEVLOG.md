@@ -310,3 +310,9 @@
 - Сделано: `eslint.config.js` (typescript-eslint, react-hooks); во `apps/web` правило `no-restricted-imports`: из `@app/api` только `import type` и `@app/api/schemas`, относительные пути в `api/src` запрещены (D-024, D-029). `Dockerfile` (Node 22, pnpm через corepack, сборка фронта, рантайм только с prod-зависимостями API). `.github/workflows/ci.yml`: job `check` — typecheck, lint, `pnpm test` с Postgres 17 и Mailpit как services. Job `e2e` — с тикетом «E2e на две вкладки и CI-job e2e».
 - Проверка: `pnpm lint` → exit 0; временный файл с `import { createApp } from "@app/api/app"` и `../../../api/src/env.ts` → 2 ошибки правила, `import type` из того же модуля проходит. `POSTGRES_PORT=5442 … API_PORT=3998 docker compose up -d --build` → контейнер `api` применил миграции и слушает; `/` и `/e/x` → `200 text/html`, `/api/auth/me` → `401`, signup и создание события через curl → `201`. `pnpm test` → 3 файла, 16 passed; `pnpm typecheck` чистый.
 - Дальше: PR, зелёный CI на нём.
+
+## 2026-10-21 11:51 +0700 — PR по тикету «Трассер…» открыт, CI зелёный
+- Сделано: [PR #71](https://github.com/prokopofffff/maddevs-test/pull/71), закрывает #54. Критерии тикета пройдены, кроме тех, что тикет сам отдаёт другим срезам (форма регистрации, live, список участников).
+- Проверка: CI run 39546214429, job `check` → typecheck и lint чистые, `Test Files 3 passed`, `Tests 16 passed` на Postgres 17 как service. Чистый клон: `pnpm install --frozen-lockfile && pnpm test` → 16 passed.
+- Окружение разработки: compose этого репо поднят с `POSTGRES_PORT=5442 MAILPIT_SMTP_PORT=1026 MAILPIT_UI_PORT=8026 API_PORT=3998`, тесты — с `TEST_DATABASE_URL=postgres://app:app@localhost:5442/postgres`.
+- Дальше: ревью PR; следующий тикет с фронтира — «R1 — регистрация с кодом подтверждения и письмо с билетом» (#55).
