@@ -57,7 +57,7 @@ export async function waitlistPosition(db: Queryable, registration: Registration
 
 /**
  * Все регистрации события для организатора, включая отменённые: подтверждённые по времени места,
- * лист ожидания по номеру — `(verified_at, id)` (D-012), отменённые по времени отказа (D-050).
+ * лист ожидания по номеру — `(verified_at, id)` (D-012), отменённые по времени отказа (D-051).
  */
 export async function eventRegistrations(db: Queryable, eventId: string) {
   const { status } = registrations;

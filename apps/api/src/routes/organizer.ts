@@ -119,17 +119,17 @@ export const organizerRoutes = new Hono<Env>()
     );
   })
   .patch("/events/:id", validate("json", eventPatchSchema), async (c) => {
-    const { db, clock, user } = c.var;
+    const { db, clock, config, user } = c.var;
     const id = c.req.param("id");
     const patch = c.req.valid("json");
     const now = clock.now();
     const event = await withTx(db, async (tx) => {
       const locked = isUuid(id) ? await lockEvent(tx, id) : undefined;
       if (!locked || locked.organizerId !== user.id) return undefined;
-      return updateEvent(tx, locked, patch, now);
+      return updateEvent(tx, locked, patch, { now, publicUrl: config.publicUrl });
     });
     if (!event) return apiError(c, 404, "not_found");
-    if ("error" in event) return apiError(c, 501, event.error);
+    if ("error" in event) return apiError(c, event.error === "event_started" ? 409 : 501, event.error);
     const counts = await countsFor(db, [event]);
     return c.json({ event: organizerEvent(event, now), counts: counts.get(event.id)! }, 200);
   })

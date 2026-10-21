@@ -19,7 +19,7 @@ type Filter = (typeof filters)[number][0];
 export const registrationsKey = (eventId: string) => ["organizer", "event", eventId, "registrations"] as const;
 
 /**
- * Список участников S8: все регистрации, включая отменённые, в порядке сервера (D-050); фильтр по статусу — на клиенте.
+ * Список участников S8: все регистрации, включая отменённые, в порядке сервера (D-051); фильтр по статусу — на клиенте.
  * Время прихода — на часах пояса события.
  */
 export function ParticipantList({ eventId, timezone, minAge }: { eventId: string; timezone: string; minAge: number | null }) {

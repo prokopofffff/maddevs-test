@@ -252,7 +252,7 @@ Cookie `sid`: httpOnly, `SameSite=Lax`, `Path=/`, `Max-Age` 30 дней, `Secure
 | `POST /organizer/events/:id/checkin` | `checkinSchema {code}` | `200 {registrationId, firstName, lastName, checkedInAt}` | `409 already_checked_in {firstName, lastName, checkedInAt}`, `409 ticket_cancelled`, `404 ticket_not_found` |
 | `DELETE /organizer/events/:id/checkin/:registrationId` | — | `204` | — |
 
-`counts` = `{confirmed, limit, waitlisted, checkedIn}`. `registrationCount` — число строк регистраций, включая отменённые: по нему форма решает, показывать ли «Удалить» (D-035). Список регистраций отдаёт всех, включая отменённых, в порядке «подтверждённые по `confirmed_at` → лист ожидания по номеру → отменённые по `cancelled_at`» (D-050); фильтр — на клиенте.
+`counts` = `{confirmed, limit, waitlisted, checkedIn}`. `registrationCount` — число строк регистраций, включая отменённые: по нему форма решает, показывать ли «Удалить» (D-035). Список регистраций отдаёт всех, включая отменённых, в порядке «подтверждённые по `confirmed_at` → лист ожидания по номеру → отменённые по `cancelled_at`» (D-051); фильтр — на клиенте.
 
 Валидация события: `title` 1–200, `description` 0–5000, `timezone` из `Intl.supportedValuesOf('timeZone')`, `limit` целое 1–100 000, `minAge` целое 1–120 или `null`. Новое событие — только в будущем.
 

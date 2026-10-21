@@ -785,6 +785,66 @@
 
 > resolve conflicts
 
+## 2026-10-21 16:20:56 +0700 — session fabf81d8
+
+> <system_instruction>
+> You are working inside Conductor, a Mac app that lets the user run many coding agents in parallel.
+> Your work should take place in the /Users/jonya_ko/conductor/workspaces/maddevs-test/toronto-v1 directory (unless otherwise directed), which has been set up for you to work in.
+> Each workspace has a .context directory (gitignored) where you can save files to collaborate with other agents.
+> The target branch for this workspace is origin/main. Use this for actions like diffing (`git diff origin/main...`) or creating PRs (`gh pr create --base main`).
+> You're on a new branch with a placeholder name.
+> 
+> Do not rename the current branch unless the user explicitly tells you to do so.
+> 
+> Conductor shows the PR for whichever branch is checked out. After you open a PR from a different branch, or a PR stack, check out that PR's branch (for a stack, the top-most branch) so Conductor shows it.
+> 
+> By default, the user will only see the last message that you send before stopping. Include all essential information in the last message. The intermediate messages will be collapsed and accessible by the user but not displayed by default.
+> 
+> Save screenshots under `.context/` and embed them inline in the final response using Markdown image syntax, for example `![Screenshot](</Users/jonya_ko/conductor/workspaces/maddevs-test/toronto-v1/.context/screenshot.png>)`.
+> 
+> If the user asks you to work on several unrelated tasks, you can suggest they start new workspaces.
+> Sometimes the user might send you a message they meant to send in a different workspace or a different chat. If something doesn't make sense in the context of your work, just ask.
+> If the user asks for help with Conductor, you can ask them to go to "Help -> Send Feedback" to get in touch with our team.
+> </system_instruction>
+> 
+> we should delete branches after pr merge
+
+## 2026-10-21 16:25:37 +0700 — session fabf81d8
+
+> 
+> <system_instruction>
+> The user has attached these files. Read them before proceeding.
+> - .context/attachments/ajEnQF/PR instructions.md (1.1 KB)
+> </system_instruction>
+> 
+> 
+> 
+> Create a PR .context/attachments/ajEnQF/PR instructions.md
+
+## 2026-10-21 16:26:17 +0700 — session 164a57fc
+
+> <system_instruction>
+> You are working inside Conductor, a Mac app that lets the user run many coding agents in parallel.
+> Your work should take place in the /Users/jonya_ko/conductor/workspaces/maddevs-test/pattaya directory (unless otherwise directed), which has been set up for you to work in.
+> Each workspace has a .context directory (gitignored) where you can save files to collaborate with other agents.
+> The target branch for this workspace is origin/main. Use this for actions like diffing (`git diff origin/main...`) or creating PRs (`gh pr create --base main`).
+> You're on a new branch with a placeholder name.
+> 
+> Do not rename the current branch unless the user explicitly tells you to do so.
+> 
+> Conductor shows the PR for whichever branch is checked out. After you open a PR from a different branch, or a PR stack, check out that PR's branch (for a stack, the top-most branch) so Conductor shows it.
+> 
+> By default, the user will only see the last message that you send before stopping. Include all essential information in the last message. The intermediate messages will be collapsed and accessible by the user but not displayed by default.
+> 
+> Save screenshots under `.context/` and embed them inline in the final response using Markdown image syntax, for example `![Screenshot](</Users/jonya_ko/conductor/workspaces/maddevs-test/pattaya/.context/screenshot.png>)`.
+> 
+> If the user asks you to work on several unrelated tasks, you can suggest they start new workspaces.
+> Sometimes the user might send you a message they meant to send in a different workspace or a different chat. If something doesn't make sense in the context of your work, just ask.
+> If the user asks for help with Conductor, you can ask them to go to "Help -> Send Feedback" to get in touch with our team.
+> </system_instruction>
+> 
+> /mattpocock-skills:wayfinder https://github.com/prokopofffff/maddevs-test/issues/60
+
 ## 2026-10-21 16:26:21 +0700 — session 6599513e
 
 > <system_instruction>
@@ -808,6 +868,14 @@
 > </system_instruction>
 > 
 > /mattpocock-skills:wayfinder https://github.com/prokopofffff/maddevs-test/issues/61
+
+## 2026-10-21 16:26:24 +0700 — session fabf81d8
+
+> Merge the remote branch (main) into your branch and resolve conflicts. Then, commit and push your changes.
+
+## 2026-10-21 16:55:22 +0700 — session 164a57fc
+
+> a
 
 ## 2026-10-21 22:48:47 +0700 — session 6599513e
 
