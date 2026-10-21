@@ -1,16 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { checkin, ticketCard } from "../../support/organizer.ts";
-import { cancel, createEvent, participant, register } from "../../support/participant.ts";
-import { testApp, type TestApp } from "../../support/test-app.ts";
+import { cancel, confirmedTicket, createEvent, participant } from "../../support/participant.ts";
+import { testApp } from "../../support/test-app.ts";
 
 const shown = (code: string) => `${code.slice(0, 4)}-${code.slice(4)}`;
-
-/** Подтверждённая регистрация и её код билета — со страницы по личной ссылке. */
-async function confirmedTicket(t: TestApp, eventId: string, data = participant()) {
-  const { token } = (await register(t, eventId, data)).body;
-  const page = (await t.client().get(`/api/registrations/${token}`)).body;
-  return { token, ticketCode: page.ticketCode as string };
-}
 
 describe("R5 — однократный чекин", () => {
   it("R5: два одновременных чекина одного кода — одна отметка, второй получает «уже прошёл» со временем первой", async () => {

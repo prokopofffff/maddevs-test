@@ -1,10 +1,13 @@
 import { and, asc, count, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { events, registrations } from "../db/schema.ts";
-import { withTx } from "../db/tx.ts";
+import { withTx, type Queryable } from "../db/tx.ts";
+import { ageOnEventDay, belowMinAge } from "../domain/age.ts";
+import { checkIn, findTicket } from "../domain/checkin.ts";
 import { countsFor, deleteEvent, lockEvent, started, updateEvent, type EventRow } from "../domain/events.ts";
 import { apiError, type Env } from "../http.ts";
 import { eventInputSchema, eventPatchSchema } from "../schemas/event.ts";
+import { checkinSchema } from "../schemas/ticket.ts";
 import { instantToLocal, localToInstant } from "../time.ts";
 import { validate } from "../validation.ts";
 import { requireUser } from "./auth.ts";
@@ -21,6 +24,16 @@ const organizerEvent = (e: EventRow, now: Date) => ({
   minAge: e.minAge,
   started: started(e, now),
 });
+
+/** Событие организатора; чужое неотличимо от несуществующего (D-005). */
+async function ownEvent(db: Queryable, id: string, organizerId: number) {
+  if (!isUuid(id)) return undefined;
+  const [event] = await db
+    .select()
+    .from(events)
+    .where(and(eq(events.id, id), eq(events.organizerId, organizerId)));
+  return event;
+}
 
 export const organizerRoutes = new Hono<Env>()
   .use(requireUser)
@@ -68,11 +81,7 @@ export const organizerRoutes = new Hono<Env>()
   })
   .get("/events/:id", async (c) => {
     const { db, clock, config, user } = c.var;
-    const id = c.req.param("id");
-    // Чужое событие неотличимо от несуществующего (D-005).
-    const [event] = isUuid(id)
-      ? await db.select().from(events).where(and(eq(events.id, id), eq(events.organizerId, user.id)))
-      : [];
+    const event = await ownEvent(db, c.req.param("id"), user.id);
     if (!event) return apiError(c, 404, "not_found");
     const [counts, [registered]] = await Promise.all([
       countsFor(db, [event]),
@@ -114,4 +123,53 @@ export const organizerRoutes = new Hono<Env>()
     if (result?.error === "not_found") return apiError(c, 404, result.error);
     if (result) return apiError(c, 409, result.error);
     return c.body(null, 204);
+  })
+  // Карточка билета на входе: только чтение, отметку ставит `POST …/checkin` (D-022, D-023).
+  .get("/events/:id/tickets/:code", async (c) => {
+    const { db, user } = c.var;
+    const event = await ownEvent(db, c.req.param("id"), user.id);
+    if (!event) return apiError(c, 404, "not_found");
+    const ticket = await findTicket(db, event.id, c.req.param("code"));
+    if (!ticket) return apiError(c, 404, "ticket_not_found");
+    return c.json(
+      {
+        registrationId: ticket.id,
+        firstName: ticket.firstName,
+        lastName: ticket.lastName,
+        birthDate: ticket.birthDate,
+        ageOnEventDay: ageOnEventDay(ticket.birthDate, event),
+        belowMinAge: belowMinAge(ticket.birthDate, event),
+        status: ticket.status,
+        checkedInAt: ticket.checkedInAt?.toISOString() ?? null,
+      },
+      200,
+    );
+  })
+  .post("/events/:id/checkin", validate("json", checkinSchema), async (c) => {
+    const { db, clock, user } = c.var;
+    const event = await ownEvent(db, c.req.param("id"), user.id);
+    if (!event) return apiError(c, 404, "not_found");
+    const result = await checkIn(db, event.id, c.req.valid("json").code, clock.now());
+    switch (result.error) {
+      case undefined:
+        return c.json(
+          {
+            registrationId: result.registration.id,
+            firstName: result.registration.firstName,
+            lastName: result.registration.lastName,
+            checkedInAt: result.registration.checkedInAt!.toISOString(),
+          },
+          200,
+        );
+      case "already_checked_in":
+        return apiError(c, 409, result.error, {
+          firstName: result.registration.firstName,
+          lastName: result.registration.lastName,
+          checkedInAt: result.registration.checkedInAt?.toISOString() ?? null,
+        });
+      case "ticket_cancelled":
+        return apiError(c, 409, result.error);
+      case "ticket_not_found":
+        return apiError(c, 404, result.error);
+    }
   });
