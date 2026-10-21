@@ -1,0 +1,13 @@
+/* Своё поверх шаблона — только то, чего в нём нет. */
+
+/* Шаблон верстает по ширине рамки (container queries `frame`); в приложении рамка — вся страница. */
+#root {
+  container-name: frame;
+  container-type: inline-size;
+  min-height: 100vh;
+  background: var(--color-bg);
+}
+
+.toast--floating { position: fixed; }
+
+.page-loading { padding: var(--space-8) var(--space-5); }
