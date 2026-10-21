@@ -13,6 +13,8 @@ const messages: Record<string, string> = {
   code_attempts_exceeded: "Попытки закончились — запросите новый код",
   code_resend_too_soon: "Код уже отправлен — новый можно запросить через минуту",
   registration_not_found: "Регистрации на этот email нет",
+  event_has_registrations: "На событие уже зарегистрировались — удалить его нельзя",
+  not_implemented: "Перенос события и изменение лимита мест пока недоступны",
 };
 
 /** Код ошибки API → русский текст (D-024). */

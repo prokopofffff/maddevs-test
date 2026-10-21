@@ -1,6 +1,8 @@
 import { eq, inArray, sql } from "drizzle-orm";
 import { events, registrations } from "../db/schema.ts";
-import type { Queryable } from "../db/tx.ts";
+import type { Queryable, Tx } from "../db/tx.ts";
+import type { EventPatch } from "../schemas/event.ts";
+import { localToInstant } from "../time.ts";
 
 export type EventRow = typeof events.$inferSelect;
 
@@ -49,4 +51,40 @@ export async function lockEvent(tx: Queryable, id: string): Promise<EventRow | u
 export function freeSeats(event: Pick<EventRow, "startsAt">, counts: Counts, now: Date) {
   if (started(event, now) || counts.waitlisted > 0) return 0;
   return Math.max(0, counts.limit - counts.confirmed);
+}
+
+/** Правка организатором: событие уже под блокировкой (SPEC, раздел 3). */
+export async function updateEvent(
+  tx: Tx,
+  event: EventRow,
+  patch: EventPatch,
+  now: Date,
+): Promise<EventRow | { error: "not_implemented" }> {
+  const timezone = patch.timezone ?? event.timezone;
+  // Без `startsLocal` момент сохраняется; смена только пояса — не перенос (D-016).
+  const startsAt = patch.startsLocal ? localToInstant(patch.startsLocal, timezone) : event.startsAt;
+  // Заглушка: перенос — тикет «R6 — перенос события», лимит — «Лимит мест: увеличение и „сверх лимита“».
+  const moved = startsAt.getTime() !== event.startsAt.getTime();
+  const resized = patch.limit !== undefined && patch.limit !== event.seatLimit;
+  if (moved || resized) return { error: "not_implemented" };
+
+  const [updated] = await tx
+    .update(events)
+    .set({
+      title: patch.title ?? event.title,
+      description: patch.description ?? event.description,
+      timezone,
+      minAge: patch.minAge === undefined ? event.minAge : patch.minAge,
+      updatedAt: now,
+    })
+    .where(eq(events.id, event.id))
+    .returning();
+  return updated!;
+}
+
+/** Удаление события, созданного по ошибке: только без единой регистрации, включая отменённые; коды подтверждения уходят каскадом (D-035). */
+export async function deleteEvent(tx: Tx, event: EventRow): Promise<{ error: "event_has_registrations" } | undefined> {
+  const [any] = await tx.select({ id: registrations.id }).from(registrations).where(eq(registrations.eventId, event.id)).limit(1);
+  if (any) return { error: "event_has_registrations" };
+  await tx.delete(events).where(eq(events.id, event.id));
 }
