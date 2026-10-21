@@ -56,6 +56,26 @@ export async function waitlistPosition(db: Queryable, registration: Registration
 }
 
 /**
+ * Все регистрации события для организатора, включая отменённые: подтверждённые по времени места,
+ * лист ожидания по номеру — `(verified_at, id)` (D-012), отменённые по времени отказа (D-050).
+ */
+export async function eventRegistrations(db: Queryable, eventId: string) {
+  const { status } = registrations;
+  const rows = await db
+    .select()
+    .from(registrations)
+    .where(eq(registrations.eventId, eventId))
+    .orderBy(
+      sql`case ${status} when 'confirmed' then 0 when 'waitlisted' then 1 else 2 end`,
+      sql`case ${status} when 'confirmed' then ${registrations.confirmedAt}
+        when 'waitlisted' then ${registrations.verifiedAt} else ${registrations.cancelledAt} end`,
+      asc(registrations.id),
+    );
+  let position = 0;
+  return rows.map((row) => ({ row, waitlistPosition: row.status === "waitlisted" ? ++position : null }));
+}
+
+/**
  * Распределение после верного кода `register` (SPEC, раздел 3). Вызывается под блокировкой события,
  * поэтому подсчёт и вставка не гоняются с параллельными подтверждениями (D-011).
  */

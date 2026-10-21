@@ -1,8 +1,11 @@
 import { and, asc, count, eq } from "drizzle-orm";
+import type { Queryable } from "../db/tx.ts";
 import { Hono } from "hono";
 import { events, registrations } from "../db/schema.ts";
 import { withTx } from "../db/tx.ts";
+import { ageOnEventDay, belowMinAge } from "../domain/age.ts";
 import { countsFor, deleteEvent, lockEvent, started, updateEvent, type EventRow } from "../domain/events.ts";
+import { eventRegistrations } from "../domain/registrations.ts";
 import { apiError, type Env } from "../http.ts";
 import { eventInputSchema, eventPatchSchema } from "../schemas/event.ts";
 import { instantToLocal, localToInstant } from "../time.ts";
@@ -21,6 +24,13 @@ const organizerEvent = (e: EventRow, now: Date) => ({
   minAge: e.minAge,
   started: started(e, now),
 });
+
+/** Чужое событие неотличимо от несуществующего (D-005). */
+async function ownEvent(db: Queryable, id: string, organizerId: number) {
+  if (!isUuid(id)) return undefined;
+  const [event] = await db.select().from(events).where(and(eq(events.id, id), eq(events.organizerId, organizerId)));
+  return event;
+}
 
 export const organizerRoutes = new Hono<Env>()
   .use(requireUser)
@@ -68,11 +78,7 @@ export const organizerRoutes = new Hono<Env>()
   })
   .get("/events/:id", async (c) => {
     const { db, clock, config, user } = c.var;
-    const id = c.req.param("id");
-    // Чужое событие неотличимо от несуществующего (D-005).
-    const [event] = isUuid(id)
-      ? await db.select().from(events).where(and(eq(events.id, id), eq(events.organizerId, user.id)))
-      : [];
+    const event = await ownEvent(db, c.req.param("id"), user.id);
     if (!event) return apiError(c, 404, "not_found");
     const [counts, [registered]] = await Promise.all([
       countsFor(db, [event]),
@@ -84,6 +90,30 @@ export const organizerRoutes = new Hono<Env>()
         counts: counts.get(event.id)!,
         publicUrl: `${config.publicUrl}/e/${event.id}`,
         registrationCount: registered!.n,
+      },
+      200,
+    );
+  })
+  .get("/events/:id/registrations", async (c) => {
+    const { db, user } = c.var;
+    const event = await ownEvent(db, c.req.param("id"), user.id);
+    if (!event) return apiError(c, 404, "not_found");
+    const list = await eventRegistrations(db, event.id);
+    return c.json(
+      {
+        registrations: list.map(({ row: r, waitlistPosition }) => ({
+          id: r.id,
+          firstName: r.firstName,
+          lastName: r.lastName,
+          email: r.email,
+          birthDate: r.birthDate,
+          ageOnEventDay: ageOnEventDay(r.birthDate, event),
+          belowMinAge: belowMinAge(r.birthDate, event),
+          status: r.status,
+          waitlistPosition,
+          confirmedAt: r.confirmedAt?.toISOString() ?? null,
+          checkedInAt: r.checkedInAt?.toISOString() ?? null,
+        })),
       },
       200,
     );
