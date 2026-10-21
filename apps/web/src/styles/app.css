@@ -11,3 +11,6 @@
 .toast--floating { position: fixed; }
 
 .page-loading { padding: var(--space-8) var(--space-5); }
+
+/* «Изменить email» — кнопка, а не ссылка (возврат к форме без перехода): выглядит как `.back-link` шаблона. */
+button.back-link { padding: 0; border: 0; background: none; font: inherit; font-weight: var(--font-weight-semibold); cursor: pointer; }

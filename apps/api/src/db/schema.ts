@@ -78,3 +78,51 @@ export const registrations = pgTable(
       .where(sql`${t.status} = 'waitlisted'`),
   ],
 );
+
+/** Коды подтверждения email; `register` хранит данные формы до верного кода (D-007, D-039). */
+export const emailVerifications = pgTable(
+  "email_verifications",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+    email: text("email").notNull(),
+    purpose: text("purpose", { enum: ["register", "lookup"] }).notNull(),
+    firstName: text("first_name"),
+    lastName: text("last_name"),
+    birthDate: date("birth_date", { mode: "string" }),
+    code: text("code").notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    expiresAt: tz("expires_at").notNull(),
+    consumedAt: tz("consumed_at"),
+    createdAt: tz("created_at").notNull(),
+  },
+  (t) => [index("email_verifications_event_email_created_idx").on(t.eventId, t.email, t.createdAt.desc())],
+);
+
+/** Письма ставятся в транзакции действия и уходят циклом отправки (D-013). */
+export const emailOutbox = pgTable(
+  "email_outbox",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    dedupKey: text("dedup_key").notNull().unique(),
+    kind: text("kind").notNull(),
+    toEmail: text("to_email").notNull(),
+    subject: text("subject").notNull(),
+    text: text("text").notNull(),
+    html: text("html").notNull(),
+    createdAt: tz("created_at").notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    nextAttemptAt: tz("next_attempt_at").notNull(),
+    lockedUntil: tz("locked_until"),
+    sentAt: tz("sent_at"),
+    failedAt: tz("failed_at"),
+    lastError: text("last_error"),
+  },
+  (t) => [
+    index("email_outbox_due_idx")
+      .on(t.nextAttemptAt)
+      .where(sql`${t.sentAt} is null and ${t.failedAt} is null`),
+  ],
+);

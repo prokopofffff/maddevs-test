@@ -29,10 +29,27 @@ export function utcOffset(at: string | Date, timeZone: string) {
   return (name ?? "GMT").replace("GMT", "UTC").replace("-", "−");
 }
 
-/** «Осталось 3 места», «Осталось 21 место», «Осталось 5 мест». */
-export function seatsLeft(n: number) {
+/** Форма слова для числа: `plural(3, ["место", "места", "мест"])` → «места». */
+export function plural(n: number, [one, few, many]: [string, string, string]) {
   const mod10 = n % 10;
   const mod100 = n % 100;
-  const word = mod10 === 1 && mod100 !== 11 ? "место" : mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14) ? "места" : "мест";
-  return `Осталось ${n} ${word}`;
+  if (mod10 === 1 && mod100 !== 11) return one;
+  return mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14) ? few : many;
 }
+
+/** «Осталось 3 места», «Осталось 21 место», «Осталось 5 мест». */
+export function seatsLeft(n: number) {
+  return `Осталось ${n} ${plural(n, ["место", "места", "мест"])}`;
+}
+
+/** «14.03.1994» из `1994-03-14`. */
+export const formatDate = (isoDate: string) => isoDate.split("-").reverse().join(".");
+
+/** Сегодняшняя дата `YYYY-MM-DD` по часам браузера — для `max` у поля даты рождения. */
+export function todayIso() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** «0:45» — оставшиеся секунды таймера. */
+export const formatCountdown = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;

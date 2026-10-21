@@ -12,19 +12,29 @@ export interface AppConfig {
   cookieSecure: boolean;
 }
 
+/** Пинок цикла отправки после коммита, поставившего письмо (D-014). */
+export interface OutboxWaker {
+  wake(): void;
+}
+
 export interface AppDeps {
   db: Db;
   clock: Clock;
   config: AppConfig;
+  /** В тестах не передаётся: письма уходят только по `runJobs(now)`. */
+  outbox?: OutboxWaker;
 }
 
+const noWake: OutboxWaker = { wake() {} };
+
 /** Фабрика приложения — единственная граница, которую видят тесты (D-041). */
-export function createApp({ db, clock, config }: AppDeps) {
+export function createApp({ db, clock, config, outbox = noWake }: AppDeps) {
   const api = new Hono<Env>()
     .use(async (c, next) => {
       c.set("db", db);
       c.set("clock", clock);
       c.set("config", config);
+      c.set("outbox", outbox);
       await next();
     })
     .route("/auth", authRoutes)
