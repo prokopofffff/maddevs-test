@@ -81,8 +81,8 @@ export function testApp(options: { now?: string; queries?: string[] } = {}) {
   const clock = new TestClock(new Date(options.now ?? "2026-11-01T09:00:00Z"));
   const mailbox = new Mailbox();
   const app = createApp({ db, clock, config: { publicUrl: PUBLIC_URL, cookieSecure: false } });
-  const { runJobs } = createJobs({ db, transport: mailbox });
-  return { app, clock, mailbox, runJobs, client: () => new Client(app) };
+  const { runJobs, sweepReminders } = createJobs({ db, transport: mailbox, publicUrl: PUBLIC_URL });
+  return { app, clock, mailbox, runJobs, sweepReminders, client: () => new Client(app) };
 }
 
 export type TestApp = ReturnType<typeof testApp>;
