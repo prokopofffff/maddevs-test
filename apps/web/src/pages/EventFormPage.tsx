@@ -1,12 +1,13 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { eventInputSchema, type EventPatch } from "@app/api/schemas";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { Link, useNavigate, useParams } from "react-router";
 import { z } from "zod";
 import { api, ApiError, client } from "../api.ts";
 import { ErrorBanner } from "../components/Banner.tsx";
+import { ConfirmDialog } from "../components/ConfirmDialog.tsx";
 import { Icon } from "../components/Icon.tsx";
 import { PageSkeleton } from "../components/Skeleton.tsx";
 import { Toast } from "../components/Toast.tsx";
@@ -114,11 +115,8 @@ function EventForm({ loaded }: { loaded?: OrganizerEvent }) {
       queryClient.invalidateQueries({ queryKey: myEventsKey });
       navigate("/organizer");
     },
-    onError: () => {
-      setConfirmDelete(false);
-      // Пока диалог был открыт, кто-то мог зарегистрироваться: кнопка спрячется (D-035).
-      queryClient.invalidateQueries({ queryKey: eventKey(loaded!.event.id) });
-    },
+    // Пока диалог был открыт, кто-то мог зарегистрироваться: ошибка в диалоге, кнопка спрячется (D-035).
+    onError: () => queryClient.invalidateQueries({ queryKey: eventKey(loaded!.event.id) }),
   });
   const saving = create.isPending || update.isPending;
   const saveError = create.error ?? update.error;
@@ -175,7 +173,6 @@ function EventForm({ loaded }: { loaded?: OrganizerEvent }) {
               {errorText(saveError)}
             </ErrorBanner>
           )}
-          {remove.isError && <ErrorBanner title="Не удалось удалить событие">{errorText(remove.error)}</ErrorBanner>}
           <div className={field("title").className}>
             <label className="field__label" htmlFor="event-title">
               Название
@@ -323,47 +320,21 @@ function EventForm({ loaded }: { loaded?: OrganizerEvent }) {
         </aside>
       </div>
       {confirmDelete && loaded && (
-        <DeleteDialog
+        <ConfirmDialog
+          title="Удалить событие?"
+          text="Событие пропадёт из «Моих событий», а ссылка для участников перестанет открываться. Вернуть его нельзя."
+          confirmLabel={remove.isPending ? "Удаляем…" : "Удалить событие"}
+          cancelLabel="Оставить событие"
           pending={remove.isPending}
+          error={remove.isError ? errorText(remove.error) : undefined}
           onConfirm={() => remove.mutate()}
-          onCancel={() => setConfirmDelete(false)}
+          onCancel={() => {
+            setConfirmDelete(false);
+            remove.reset();
+          }}
         />
       )}
     </>
   );
 }
 
-/** Диалог по `c-dialog`: удаление необратимо, поэтому подтверждаем (D-035). */
-function DeleteDialog({ pending, onConfirm, onCancel }: { pending: boolean; onConfirm: () => void; onCancel: () => void }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onCancel();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onCancel]);
-  return (
-    <div className="dialog-backdrop">
-      <div
-        className="dialog"
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="delete-dialog-title"
-        aria-describedby="delete-dialog-text"
-      >
-        <h2 className="dialog__title" id="delete-dialog-title">
-          Удалить событие?
-        </h2>
-        <p className="dialog__text" id="delete-dialog-text">
-          Событие пропадёт из «Моих событий», а ссылка для участников перестанет открываться. Вернуть его нельзя.
-        </p>
-        <div className="dialog__actions">
-          <button className="button button--danger" type="button" disabled={pending} onClick={onConfirm}>
-            {pending ? "Удаляем…" : "Удалить событие"}
-          </button>
-          <button className="button button--secondary" type="button" autoFocus onClick={onCancel}>
-            Оставить событие
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}

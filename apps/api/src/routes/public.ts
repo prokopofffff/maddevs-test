@@ -1,9 +1,9 @@
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { events, registrations } from "../db/schema.ts";
-import type { Queryable } from "../db/tx.ts";
-import { countsFor, freeSeats, started } from "../domain/events.ts";
-import { DomainError, waitlistPosition, type RegistrationRow } from "../domain/registrations.ts";
+import { withTx, type Queryable } from "../db/tx.ts";
+import { countsFor, freeSeats, lockEvent, started } from "../domain/events.ts";
+import { cancel, DomainError, waitlistPosition, type RegistrationRow } from "../domain/registrations.ts";
 import { confirmVerification, issueVerification } from "../domain/verifications.ts";
 import { apiError, type Env } from "../http.ts";
 import { confirmCodeSchema, verificationRequestSchema } from "../schemas/participant.ts";
@@ -149,4 +149,32 @@ export const publicRoutes = new Hono<Env>()
       },
       200,
     );
+  })
+  .post("/registrations/:token/cancel", async (c) => {
+    const { db, clock, config, outbox } = c.var;
+    const token = c.req.param("token");
+    const [found] = TOKEN.test(token)
+      ? await db.select({ eventId: registrations.eventId }).from(registrations).where(eq(registrations.token, token))
+      : [];
+    if (!found) return apiError(c, 404, "not_found");
+
+    let cancelled;
+    try {
+      cancelled = await withTx(db, async (tx) => {
+        // Порядок блокировок «событие → регистрации»; строка перечитывается уже под блокировкой события (D-011).
+        const event = (await lockEvent(tx, found.eventId))!;
+        const [registration] = await tx
+          .select()
+          .from(registrations)
+          .where(eq(registrations.token, token))
+          .for("update");
+        return cancel(tx, event, registration!, { now: clock.now(), publicUrl: config.publicUrl });
+      });
+    } catch (error) {
+      if (error instanceof DomainError) return apiError(c, 409, error.code);
+      throw error;
+    }
+    // Письмо об отказе и, если место освободилось, о повышении закоммичены (D-014).
+    outbox.wake();
+    return c.json({ status: cancelled.status }, 200);
   });

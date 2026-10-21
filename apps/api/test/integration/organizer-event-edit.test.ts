@@ -1,9 +1,6 @@
-import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { registrations } from "../../src/db/schema.ts";
-import { testDb } from "../setup/worker-db.ts";
 import { eventInput, signUpOrganizer } from "../support/organizer.ts";
-import { createEvent, register } from "../support/participant.ts";
+import { cancel, createEvent, register } from "../support/participant.ts";
 import { testApp } from "../support/test-app.ts";
 
 describe("правка и удаление события", () => {
@@ -122,12 +119,8 @@ describe("правка и удаление события", () => {
   it("отменённая регистрация тоже не даёт удалить событие", async () => {
     const t = testApp();
     const { eventId, organizer } = await createEvent(t);
-    await register(t, eventId);
-    // Отказа по личной ссылке ещё нет (тикет «R2 — отказ по личной ссылке…»): отменяем на шаге подготовки.
-    await testDb()
-      .update(registrations)
-      .set({ status: "cancelled", cancelledAt: t.clock.now() })
-      .where(eq(registrations.eventId, eventId));
+    const { token } = (await register(t, eventId)).body;
+    expect((await cancel(t.client(), token)).status).toBe(200);
 
     const res = await organizer.delete(`/api/organizer/events/${eventId}`);
 
