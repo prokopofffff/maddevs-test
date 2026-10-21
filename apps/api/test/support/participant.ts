@@ -51,3 +51,8 @@ export async function register(t: TestApp, eventId: string, data: Record<string,
   const { verificationId, code } = await receiveCode(t, eventId, data);
   return confirmCode(t.client(), verificationId, code);
 }
+
+/** Отказ по личной ссылке: кнопка «Отказаться» после диалога. */
+export function cancel(client: Client, token: string) {
+  return client.post(`/api/registrations/${token}/cancel`);
+}
