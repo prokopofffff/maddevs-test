@@ -95,6 +95,7 @@ export const publicRoutes = new Hono<Env>()
           return apiError(c, 410, confirmed.error);
       }
     }
+    if (confirmed.result === "found") return c.json({ result: confirmed.result, token: confirmed.registration.token }, 200);
     if (confirmed.result === "confirmed") outbox.wake();
     const { registration } = confirmed;
     return c.json({ result: confirmed.result, token: registration.token, status: registration.status }, 200);

@@ -18,13 +18,17 @@ export const MAX_CODE_ATTEMPTS = 5;
 const isFutureDate = (date: string, now: Date) => date > now.toISOString().slice(0, 10);
 
 /**
- * Выдача кода `register` (SPEC, раздел 4, порядок проверок). Новый код гасит прежние той же пары
- * и того же назначения (D-039); письмо с кодом — в той же транзакции.
+ * Выдача кода (SPEC, раздел 4, порядок проверок). Начало и возраст проверяются только у `register`:
+ * `lookup` открыт и после начала (D-033). Новый код гасит прежние той же пары и того же назначения (D-039);
+ * письмо с кодом — в той же транзакции.
  */
 export async function issueVerification(db: Db, event: EventRow, input: VerificationRequest, { now }: MailContext) {
-  if (started(event, now)) return { error: "registration_closed" as const };
-  if (isFutureDate(input.birthDate, now)) return { error: "birth_date_in_future" as const };
-  if (belowMinAge(input.birthDate, event)) return { error: "below_min_age" as const, minAge: event.minAge! };
+  if (input.purpose === "register") {
+    if (started(event, now)) return { error: "registration_closed" as const };
+    if (isFutureDate(input.birthDate, now)) return { error: "birth_date_in_future" as const };
+    if (belowMinAge(input.birthDate, event)) return { error: "below_min_age" as const, minAge: event.minAge! };
+  }
+  const form = input.purpose === "register" ? input : undefined;
 
   const [previous] = await db
     .select({ createdAt: emailVerifications.createdAt })
@@ -56,9 +60,9 @@ export async function issueVerification(db: Db, event: EventRow, input: Verifica
         eventId: event.id,
         email: input.email,
         purpose: input.purpose,
-        firstName: input.firstName,
-        lastName: input.lastName,
-        birthDate: input.birthDate,
+        firstName: form?.firstName,
+        lastName: form?.lastName,
+        birthDate: form?.birthDate,
         code,
         expiresAt: new Date(now.getTime() + CODE_TTL_MS),
         createdAt: now,
@@ -102,6 +106,10 @@ export async function confirmVerification(db: Db, id: number, code: string, ctx:
     }
 
     await tx.update(emailVerifications).set({ consumedAt: ctx.now }).where(eq(emailVerifications.id, id));
+    if (verification.purpose === "lookup") {
+      const registration = await activeRegistration(tx, verification.eventId, verification.email);
+      return { result: "found" as const, registration: registration! };
+    }
     const event = await lockEvent(tx, verification.eventId);
     // Событие удалено вместе с кодами каскадом: до сюда не дойдём, но тип требует проверки.
     if (!event) return { error: "not_found" as const };

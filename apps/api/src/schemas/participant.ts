@@ -21,8 +21,11 @@ export const participantDataSchema = z.object({
 
 export const registrationFormSchema = participantDataSchema.extend({ email: emailSchema });
 
-/** Запрос кода подтверждения. `lookup` («потерял письмо») приходит своим тикетом. */
-export const verificationRequestSchema = registrationFormSchema.extend({ purpose: z.literal("register") });
+/** Запрос кода подтверждения: `register` — с данными формы, `lookup` («потерял письмо») — только email (D-039). */
+export const verificationRequestSchema = z.discriminatedUnion("purpose", [
+  registrationFormSchema.extend({ purpose: z.literal("register") }),
+  z.object({ purpose: z.literal("lookup"), email: emailSchema }),
+]);
 
 export const confirmCodeSchema = z.object({ code: z.string().trim().regex(/^\d{6}$/) });
 

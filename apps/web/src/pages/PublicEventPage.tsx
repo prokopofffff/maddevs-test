@@ -1,7 +1,7 @@
 import type { RegistrationForm as FormData } from "@app/api/schemas";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { useParams } from "react-router";
+import { useNavigate, useParams } from "react-router";
 import { api, ApiError, client } from "../api.ts";
 import { ErrorBanner } from "../components/Banner.tsx";
 import { Brand } from "../components/Brand.tsx";
@@ -28,6 +28,7 @@ const isCode = (error: unknown, code: string): error is ApiError => error instan
 export function PublicEventPage() {
   const { eventId = "" } = useParams();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const eventKey = ["event", eventId];
   const event = useQuery({
     queryKey: eventKey,
@@ -77,6 +78,8 @@ export function PublicEventPage() {
     mutationFn: (code: string) =>
       api(client.api.verifications[":id"].confirm.$post({ param: { id: String(verificationId) }, json: { code } })),
     onSuccess: (res) => {
+      // Вход «потерял письмо» ведёт сразу на страницу регистрации.
+      if (res.result === "found") return void navigate(`/r/${res.token}`);
       setStep({ name: "result", result: res.result, token: res.token });
       void queryClient.invalidateQueries({ queryKey: eventKey });
     },
