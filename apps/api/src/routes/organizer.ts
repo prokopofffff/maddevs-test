@@ -106,12 +106,12 @@ export const organizerRoutes = new Hono<Env>()
   .delete("/events/:id", async (c) => {
     const { db, user } = c.var;
     const id = c.req.param("id");
-    const deleted = await withTx(db, async (tx) => {
+    const result = await withTx(db, async (tx) => {
       const locked = isUuid(id) ? await lockEvent(tx, id) : undefined;
-      if (!locked || locked.organizerId !== user.id) return false;
-      await deleteEvent(tx, locked);
-      return true;
+      if (!locked || locked.organizerId !== user.id) return { error: "not_found" as const };
+      return deleteEvent(tx, locked);
     });
-    if (!deleted) return apiError(c, 404, "not_found");
+    if (result?.error === "not_found") return apiError(c, 404, result.error);
+    if (result) return apiError(c, 409, result.error);
     return c.body(null, 204);
   });

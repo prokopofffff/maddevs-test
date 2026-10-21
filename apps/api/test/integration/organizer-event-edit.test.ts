@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { eventInput, signUpOrganizer } from "../support/organizer.ts";
+import { createEvent, register } from "../support/participant.ts";
 import { testApp } from "../support/test-app.ts";
 
 describe("правка и удаление события", () => {
@@ -101,5 +102,17 @@ describe("правка и удаление события", () => {
     expect(res.status).toBe(204);
     expect((await organizer.get(`/api/organizer/events/${id}`)).status).toBe(404);
     expect((await organizer.get("/api/organizer/events")).body.events).toEqual([]);
+  });
+
+  it("событие с регистрацией не удаляется — 409 event_has_registrations", async () => {
+    const t = testApp();
+    const { eventId, organizer } = await createEvent(t);
+    await register(t, eventId);
+
+    const res = await organizer.delete(`/api/organizer/events/${eventId}`);
+
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({ error: "event_has_registrations" });
+    expect((await organizer.get(`/api/organizer/events/${eventId}`)).body.registrationCount).toBe(1);
   });
 });

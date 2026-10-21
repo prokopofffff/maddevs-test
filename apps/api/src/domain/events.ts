@@ -82,7 +82,9 @@ export async function updateEvent(
   return updated!;
 }
 
-/** Удаление события, созданного по ошибке; коды подтверждения уходят каскадом (D-035). */
-export async function deleteEvent(tx: Tx, event: EventRow): Promise<void> {
+/** Удаление события, созданного по ошибке: только без единой регистрации, включая отменённые; коды подтверждения уходят каскадом (D-035). */
+export async function deleteEvent(tx: Tx, event: EventRow): Promise<{ error: "event_has_registrations" } | undefined> {
+  const [any] = await tx.select({ id: registrations.id }).from(registrations).where(eq(registrations.eventId, event.id)).limit(1);
+  if (any) return { error: "event_has_registrations" };
   await tx.delete(events).where(eq(events.id, event.id));
 }
