@@ -1,0 +1,18 @@
+{
+  "name": "event-registration",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.32.1",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @app/api --filter @app/web dev",
+    "build": "pnpm --filter @app/web build",
+    "start": "pnpm --filter @app/api start",
+    "test": "pnpm --filter @app/api test",
+    "lint": "eslint .",
+    "typecheck": "pnpm -r typecheck",
+    "db:generate": "pnpm --filter @app/api db:generate"
+  }
+}
