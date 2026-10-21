@@ -3,6 +3,7 @@ import { events, registrations } from "../db/schema.ts";
 import type { Queryable, Tx } from "../db/tx.ts";
 import type { EventPatch } from "../schemas/event.ts";
 import { localToInstant } from "../time.ts";
+import { fillFreeSeats, type MailContext } from "./registrations.ts";
 
 export type EventRow = typeof events.$inferSelect;
 
@@ -58,15 +59,18 @@ export async function updateEvent(
   tx: Tx,
   event: EventRow,
   patch: EventPatch,
-  now: Date,
-): Promise<EventRow | { error: "not_implemented" }> {
+  ctx: MailContext,
+): Promise<EventRow | { error: "not_implemented" | "event_started" }> {
+  const { now } = ctx;
   const timezone = patch.timezone ?? event.timezone;
   // Без `startsLocal` момент сохраняется; смена только пояса — не перенос (D-016).
   const startsAt = patch.startsLocal ? localToInstant(patch.startsLocal, timezone) : event.startsAt;
-  // Заглушка: перенос — тикет «R6 — перенос события», лимит — «Лимит мест: увеличение и „сверх лимита“».
+  // Заглушка: перенос — тикет «R6 — перенос события».
   const moved = startsAt.getTime() !== event.startsAt.getTime();
+  if (moved) return { error: "not_implemented" };
   const resized = patch.limit !== undefined && patch.limit !== event.seatLimit;
-  if (moved || resized) return { error: "not_implemented" };
+  // После начала место всё равно никто не получит (D-033).
+  if (resized && started(event, now)) return { error: "event_started" };
 
   const [updated] = await tx
     .update(events)
@@ -74,11 +78,14 @@ export async function updateEvent(
       title: patch.title ?? event.title,
       description: patch.description ?? event.description,
       timezone,
+      seatLimit: patch.limit ?? event.seatLimit,
       minAge: patch.minAge === undefined ? event.minAge : patch.minAge,
       updatedAt: now,
     })
     .where(eq(events.id, event.id))
     .returning();
+  // Новые места сразу забирает лист ожидания; ниже подтверждённых — никого не трогаем (D-012, D-032).
+  if (resized) await fillFreeSeats(tx, updated!, ctx);
   return updated!;
 }
 
