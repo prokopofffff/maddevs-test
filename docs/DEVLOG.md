@@ -473,3 +473,14 @@
 - Сделано: `origin/main` влит в ветку PR #75. Конфликты: записи DEVLOG и PROMPTS обеих веток сведены по времени; в `app.css` оставлены оба правила. R2 принёс общий `ConfirmDialog` и `.dialog-backdrop--fixed`, поэтому свой `DeleteDialog` и правило `.dialog-backdrop { position: fixed }` убраны. Удаление теперь идёт через `ConfirmDialog`: ошибка `409` показывается внутри диалога, событие перезагружается, кнопка «Удалить» пропадает. Отказ теперь есть, поэтому тест «отменённая регистрация тоже не даёт удалить событие» отменяет регистрацию через `POST /registrations/:token/cancel` вместо `UPDATE` в базе.
 - Проверка: `pnpm test` → 11 файлов, 61 passed; `pnpm typecheck` и `pnpm lint` чистые; `pnpm e2e` вместе с проходами `.context/walk-edit.spec.ts` и `.context/zz-walk-create.spec.ts` → 4 passed (lookup, cancel, правка и удаление, создание).
 - Дальше: CI на слиянии, ревью PR.
+
+## 2026-10-21 16:29 +0700 — Старт тикета «R5, часть 1 — однократный чекин» (#62)
+- Сначала запущен скилл wayfinder на тикет: тумана нет, контракт в SPEC (разделы 3, 4, 8, 9) и D-005/D-022/D-023/D-033, карту не заводили — сразу TDD.
+- Границы: в этом тикете — `GET …/tickets/:code`, `POST …/checkin`, экран `/organizer/events/:id/checkin` (s9a–s9h), «Вы уже прошли на событие» на `/r/:token` (s4d), кнопка «Открыть чекин» в кабинете. Live-строка «Пришло N из M» и снятие отметки — тикет «R5, часть 2 — live-счётчики» (#63); здесь строка берёт цифры из `GET /organizer/events/:id` и перечитывается после каждой отметки.
+- План: коммит с падающим R5 (`r5-checkin-live.test.ts`), затем API, затем экраны, проход Playwright, PR.
+- Стенд: свой compose `POSTGRES_PORT=5448 MAILPIT_SMTP_PORT=1032 MAILPIT_UI_PORT=8032`; `pnpm test` на `origin/main` → 11 файлов, 61 passed.
+
+## 2026-10-21 16:30 +0700 — R5: падающий тест однократного чекина
+- Сделано: `apps/api/test/integration/requirements/r5-checkin-live.test.ts` — четыре теста из SPEC, раздел 9, R5 без live. Два параллельных `POST …/checkin` с одним кодом → один `200`, второй `409 already_checked_in` с именем и временем первой отметки; через минуту повтор показывает то же время, карточка, личная ссылка и `counts.checkedIn = 1` с ним согласны. Отменённый билет → карточка со статусом `cancelled`, отметка `409 ticket_cancelled`. Код другого события, `ZZZZ-ZZZZ` и кириллица → `404 ticket_not_found`. Нижний регистр, дефис, пробелы, `O`/`o` вместо `0` и `l` вместо `1` находят один и тот же билет. Код случайный, поэтому тест регистрирует участников, пока в коде не окажется `0` (≈22 % на код, до 60 попыток): база меняется только через API (D-041). Хелперы `ticketCard` и `checkin` — в `test/support/organizer.ts`.
+- Проверка: `pnpm test` → 4 failed (маршрутов нет: `404 not_found` вместо `200`/`ticket_not_found`), остальные 61 passed; `pnpm typecheck`, `pnpm lint` чистые.
+- Дальше: маршруты чекина в `routes/organizer.ts`.
