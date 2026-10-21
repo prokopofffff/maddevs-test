@@ -2,6 +2,7 @@ import { eq, inArray, sql } from "drizzle-orm";
 import { events, registrations } from "../db/schema.ts";
 import type { Queryable, Tx } from "../db/tx.ts";
 import type { EventPatch } from "../schemas/event.ts";
+import { localToInstant } from "../time.ts";
 
 export type EventRow = typeof events.$inferSelect;
 
@@ -53,13 +54,26 @@ export function freeSeats(event: Pick<EventRow, "startsAt">, counts: Counts, now
 }
 
 /** Правка организатором: событие уже под блокировкой (SPEC, раздел 3). */
-export async function updateEvent(tx: Tx, event: EventRow, patch: EventPatch, now: Date): Promise<EventRow> {
+export async function updateEvent(
+  tx: Tx,
+  event: EventRow,
+  patch: EventPatch,
+  now: Date,
+): Promise<EventRow | { error: "not_implemented" }> {
+  const timezone = patch.timezone ?? event.timezone;
+  // Без `startsLocal` момент сохраняется; смена только пояса — не перенос (D-016).
+  const startsAt = patch.startsLocal ? localToInstant(patch.startsLocal, timezone) : event.startsAt;
+  // Заглушка: перенос — тикет «R6 — перенос события», лимит — «Лимит мест: увеличение и „сверх лимита“».
+  const moved = startsAt.getTime() !== event.startsAt.getTime();
+  const resized = patch.limit !== undefined && patch.limit !== event.seatLimit;
+  if (moved || resized) return { error: "not_implemented" };
+
   const [updated] = await tx
     .update(events)
     .set({
       title: patch.title ?? event.title,
       description: patch.description ?? event.description,
-      timezone: patch.timezone ?? event.timezone,
+      timezone,
       minAge: patch.minAge === undefined ? event.minAge : patch.minAge,
       updatedAt: now,
     })

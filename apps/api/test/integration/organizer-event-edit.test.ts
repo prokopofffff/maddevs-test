@@ -55,4 +55,40 @@ describe("правка и удаление события", () => {
       timezone: "Europe/Moscow",
     });
   });
+
+  it("те же дата и лимит, что сейчас, — не перенос и не изменение лимита", async () => {
+    const organizer = await signUpOrganizer(testApp().client());
+    const { id } = (await organizer.post("/api/organizer/events", eventInput())).body.event;
+
+    // Форма прислала пояс вместе с пересчитанным временем: момент тот же.
+    const res = await organizer.patch(`/api/organizer/events/${id}`, {
+      startsLocal: "2026-11-20T15:00",
+      timezone: "Europe/Moscow",
+      limit: 50,
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.event).toMatchObject({ startsAt: "2026-11-20T12:00:00.000Z", timezone: "Europe/Moscow", limit: 50 });
+  });
+
+  // Заглушка до тикетов «R6 — перенос события» и «Лимит мест: увеличение и „сверх лимита“».
+  it("перенос и изменение лимита пока не поддерживаются — 501, событие не меняется", async () => {
+    const organizer = await signUpOrganizer(testApp().client());
+    const { id } = (await organizer.post("/api/organizer/events", eventInput())).body.event;
+
+    const moved = await organizer.patch(`/api/organizer/events/${id}`, { title: "Другое", startsLocal: "2026-11-21T19:00" });
+    const zoneShift = await organizer.patch(`/api/organizer/events/${id}`, { timezone: "Europe/Moscow", startsLocal: "2026-11-20T19:00" });
+    const resized = await organizer.patch(`/api/organizer/events/${id}`, { limit: 60 });
+
+    for (const res of [moved, zoneShift, resized]) {
+      expect(res.status).toBe(501);
+      expect(res.body).toEqual({ error: "not_implemented" });
+    }
+    expect((await organizer.get(`/api/organizer/events/${id}`)).body.event).toMatchObject({
+      title: "Митап про Postgres",
+      startsAt: "2026-11-20T12:00:00.000Z",
+      timezone: "Asia/Novosibirsk",
+      limit: 50,
+    });
+  });
 });

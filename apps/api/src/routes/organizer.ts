@@ -99,6 +99,7 @@ export const organizerRoutes = new Hono<Env>()
       return updateEvent(tx, locked, patch, now);
     });
     if (!event) return apiError(c, 404, "not_found");
+    if ("error" in event) return apiError(c, 501, event.error);
     const counts = await countsFor(db, [event]);
     return c.json({ event: organizerEvent(event, now), counts: counts.get(event.id)! }, 200);
   });
