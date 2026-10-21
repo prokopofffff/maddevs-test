@@ -8,7 +8,7 @@ import { systemClock } from "./clock.ts";
 import { createDb, runMigrations } from "./db/client.ts";
 import { readEnv } from "./env.ts";
 import { createJobs } from "./jobs.ts";
-import { createOutboxRunner } from "./mail/outbox.ts";
+import { createLoop } from "./loop.ts";
 import { smtpTransport } from "./mail/smtp.ts";
 
 const env = readEnv();
@@ -23,10 +23,19 @@ const transport = smtpTransport({
   from: env.mailFrom,
   messageIdDomain: new URL(env.publicUrl).hostname,
 });
-const jobs = createJobs({ db, transport });
+const jobs = createJobs({ db, transport, publicUrl: env.publicUrl });
 // Отправка — каждые 2 с и по пинку после коммита (D-013, D-014).
-const outbox = createOutboxRunner(() => jobs.dispatch(systemClock.now()));
+const outbox = createLoop("отправка писем", () => jobs.dispatch(systemClock.now()), 2000);
 outbox.start();
+// Напоминания — сразу после старта и раз в минуту; поставленное уходит пинком отправки (D-018).
+const reminders = createLoop(
+  "напоминания",
+  async () => {
+    if ((await jobs.sweepReminders(systemClock.now())) > 0) outbox.wake();
+  },
+  60_000,
+);
+reminders.start();
 
 const app = new Hono().route("/", createApp({ db, clock: systemClock, config: env, outbox }));
 
@@ -45,6 +54,7 @@ const server = serve({ fetch: app.fetch, port: env.port }, ({ port }) => {
 
 const shutdown = () => {
   server.close(async () => {
+    await reminders.stop();
     await outbox.stop();
     await db.$client.end({ timeout: 5 });
     process.exit(0);

@@ -312,7 +312,7 @@ Cookie `sid`: httpOnly, `SameSite=Lax`, `Path=/`, `Max-Age` 30 дней, `Secure
 | `waitlisted` | `allocate` → `waitlisted` | участник | `waitlisted:<registration_id>` | номер в листе ожидания на момент записи, время, личная ссылка с текущим номером (D-049) |
 | `promoted` | повышение | участник | `promoted:<registration_id>` | «Освободилось место», время, код билета, личная ссылка |
 | `cancelled` | отказ | участник | `cancelled:<registration_id>` | подтверждение отказа |
-| `reminder` | проход напоминаний | подтверждённые | `reminder:<registration_id>:<reschedule_count>` | «Завтра в …», код билета, личная ссылка (D-018) |
+| `reminder` | проход напоминаний | подтверждённые | `reminder:<registration_id>:<reschedule_count>` | «До начала меньше суток», время, код билета, личная ссылка (D-018); не «завтра»: после простоя письмо может уйти за несколько часов до начала |
 | `rescheduled` | перенос | все неотменённые | `rescheduled:<registration_id>:<reschedule_count>` | старое и новое время, статус: билет или номер в листе ожидания (D-016) |
 | `correction_accepted` | заявка принята | участник | `correction:<request_id>:accepted` | новые значения (D-031) |
 | `correction_rejected` | заявка отклонена | участник | `correction:<request_id>:rejected` | причина, если указана |
@@ -332,7 +332,10 @@ Cookie `sid`: httpOnly, `SameSite=Lax`, `Path=/`, `Max-Age` 30 дней, `Secure
 
 **`sweepReminders(now)`** — раз в минуту и сразу после старта (D-018). Одна транзакция:
 1. `SELECT id FROM events WHERE starts_at > $now AND starts_at <= $now + interval '24 hours' FOR SHARE`.
-2. Отдельный `INSERT INTO email_outbox … SELECT … ON CONFLICT (dedup_key) DO NOTHING` для регистраций `confirmed` этих событий, у которых `GREATEST(confirmed_at, rescheduled_at) < starts_at − interval '24 hours'` (`GREATEST` пропускает `NULL`).
+2. Отдельный `SELECT` регистраций `confirmed` этих событий, у которых `GREATEST(confirmed_at, rescheduled_at) < starts_at − interval '24 hours'` (`GREATEST` пропускает `NULL`) и ключа напоминания ещё нет в outbox.
+3. Для каждой — письмо рендерится шаблоном и ставится `INSERT … ON CONFLICT (dedup_key) DO NOTHING`, как любое другое (раздел 5). Один `INSERT … SELECT` не подходит: шаблон — функция TypeScript. Однократность держит уникальный ключ, фильтр по outbox лишь не рендерит уже поставленное каждую минуту.
+
+Проход, поставивший письма, пинает `dispatchOutbox`.
 
 **Порядок старта** (`apps/api/src/index.ts`): миграции → `sql.listen('event_counts')` (раздел 7) → циклы → `serve`. По `SIGTERM` и `SIGINT`: перестать принимать запросы, дождаться текущих проходов, закрыть соединения.
 

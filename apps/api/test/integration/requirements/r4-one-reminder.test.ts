@@ -63,10 +63,12 @@ describe("R4 — ровно одно напоминание", () => {
     const t = testApp();
     const { eventId } = await createEvent(t, { limit: 1 });
     t.clock.set(before(48));
-    await register(t, eventId, participant({ email: "a@example.com" }));
-    await register(t, eventId, participant({ email: "b@example.com" }));
+    // C успевает получить место и отказаться, пока листа ожидания нет; место занимает A, B встаёт в лист.
     const c = await register(t, eventId, participant({ email: "c@example.com" }));
     await cancel(t.client(), c.body.token);
+    await register(t, eventId, participant({ email: "a@example.com" }));
+    const b = await register(t, eventId, participant({ email: "b@example.com" }));
+    expect([c.body.result, b.body.result]).toEqual(["confirmed", "waitlisted"]);
 
     await t.runJobs(before(24));
 
