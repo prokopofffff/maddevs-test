@@ -12,7 +12,7 @@ import { withdrawPending } from "./corrections.ts";
 import { countsFor, started, type EventRow } from "./events.ts";
 
 export type RegistrationRow = typeof registrations.$inferSelect;
-type Verification = typeof emailVerifications.$inferSelect;
+export type Verification = typeof emailVerifications.$inferSelect;
 
 /** Отказ правила мест; транзакция откатывается, маршрут переводит код в ответ. */
 export class DomainError extends Error {

@@ -344,7 +344,7 @@ Cookie `sid`: httpOnly, `SameSite=Lax`, `Path=/`, `Max-Age` 30 дней, `Secure
 | `POST /participant/logout` | — | `204`, сессия и cookie удалены | — |
 | `GET /participant/registrations` | — | `200 {registrations: [{token, status, waitlistPosition?, ticketCode, checkedInAt, cancelledAt, event: {id, title, startsAt, timezone, format, city, started}}]}` | `401` |
 
-Коды `login` проходят только через `POST /participant/verifications/:id/confirm`; на `POST /verifications/:id/confirm` код `login` даёт `404 not_found`, и наоборот для `register` и `lookup`. Выдача кода и подтверждение — как у других назначений: 10 минут, 5 попыток, минута между кодами по email, новый код гасит прежний (D-007, D-039).
+Коды `login` проходят только через `POST /participant/verifications/:id/confirm`; на `POST /verifications/:id/confirm` код `login` даёт `404 not_found`, и наоборот для `register` и `lookup`. Выдача кода и подтверждение — как у других назначений: 10 минут, 5 попыток, минута между кодами по email, новый код гасит прежний (D-007, D-039). Повтор верного кода `login` в пределах его жизни снова отвечает `200 {email}` и ставит новую сессию, как повтор `lookup` (D-048): вторая вкладка не получает ошибку, а лишняя сессия безвредна.
 
 `GET /participant/registrations` отдаёт все строки этого email, включая отменённые: повторная регистрация после отказа даёт вторую строку, видны обе (D-007). Порядок — по `starts_at` возрастанию, деление на «Текущие» и «Прошедшие» — на клиенте. `ticketCode` — `null`, если регистрация не `confirmed`; `waitlistPosition` — текущий номер, только у `waitlisted`.
 

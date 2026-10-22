@@ -42,9 +42,9 @@ export class Mailbox implements MailTransport {
     return this.sent.filter((m) => m.kind === kind && (to === undefined || m.to === to));
   }
 
-  /** Код подтверждения из последнего письма `code` этому адресу. */
-  lastCode(to: string) {
-    const letter = this.ofKind("code", to).at(-1);
+  /** Код из последнего письма `kind` (`code` или `login_code`) этому адресу. */
+  lastCode(to: string, kind = "code") {
+    const letter = this.ofKind(kind, to).at(-1);
     const code = letter?.text.match(/\b(\d{6})\b/)?.[1];
     if (!code) throw new Error(`письма с кодом для ${to} нет`);
     return code;

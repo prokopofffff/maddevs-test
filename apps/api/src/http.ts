@@ -14,6 +14,8 @@ export interface Env {
     outbox: OutboxWaker;
     live: Live;
     user: SessionUser;
+    /** Email из сессии участника; задан после `requireParticipant` и у вошедшего в `optionalParticipant` (D-057). */
+    participantEmail: string;
   };
 }
 

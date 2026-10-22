@@ -1,6 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { readEnv } from "../../src/env.ts";
-import { confirmCode, createEvent, participant, receiveCode, requestCode } from "../support/participant.ts";
+import {
+  confirmCode,
+  confirmLogin,
+  createEvent,
+  participant,
+  receiveCode,
+  requestCode,
+  requestLoginCode,
+} from "../support/participant.ts";
 import { testApp, type Client } from "../support/test-app.ts";
 
 // Значения по умолчанию из env — те, с которыми сервис запускается (SPEC §10).
@@ -84,6 +92,24 @@ describe("rate limit (D-006)", () => {
     expect(res.body).toEqual({ error: "rate_limited" });
     expect(res.headers.get("ratelimit-limit")).toBe("20");
     // Корзина входа своя.
+    expect((await login(browser)).status).toBe(401);
+  });
+
+  it("вход участника в корзине участника: код и ввод кода считаются вместе с остальными действиями", async () => {
+    const t = testApp({ rateLimit: { rateLimits: defaults } });
+    const browser = t.client();
+
+    const issued = await requestLoginCode(browser);
+    expect(issued.status).toBe(201);
+    // Неверные коды (400, потом 410 после пяти) и несуществующий код (404) считаются одинаково.
+    const statuses = await repeat(19, () => confirmLogin(browser, issued.body.verificationId, "000000"));
+    expect(statuses).not.toContain(429);
+    const res = await confirmLogin(browser, issued.body.verificationId, "000000");
+
+    expect(res.status).toBe(429);
+    expect(res.headers.get("ratelimit-limit")).toBe("20");
+    // `/participant/me` в корзину не входит, корзина входа организатора своя.
+    expect((await browser.get("/api/participant/me")).status).toBe(401);
     expect((await login(browser)).status).toBe(401);
   });
 

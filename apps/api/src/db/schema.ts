@@ -21,6 +21,14 @@ export const sessions = pgTable("sessions", {
   expiresAt: tz("expires_at").notNull(),
 });
 
+/** Сессия участника: отдельная от `sessions` сущность без строки в `users` (D-057). */
+export const participantSessions = pgTable("participant_sessions", {
+  idHash: text("id_hash").primaryKey(),
+  email: text("email").notNull(),
+  createdAt: tz("created_at").notNull(),
+  expiresAt: tz("expires_at").notNull(),
+});
+
 export const events = pgTable(
   "events",
   {
@@ -119,16 +127,17 @@ export const correctionRequests = pgTable(
   ],
 );
 
-/** Коды подтверждения email; `register` хранит данные формы до верного кода (D-007, D-039). */
+/**
+ * Коды подтверждения email; `register` хранит данные формы до верного кода (D-007, D-039).
+ * У `login` события нет: `event_id` пуст ровно у него (D-057).
+ */
 export const emailVerifications = pgTable(
   "email_verifications",
   {
     id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
-    eventId: uuid("event_id")
-      .notNull()
-      .references(() => events.id, { onDelete: "cascade" }),
+    eventId: uuid("event_id").references(() => events.id, { onDelete: "cascade" }),
     email: text("email").notNull(),
-    purpose: text("purpose", { enum: ["register", "lookup"] }).notNull(),
+    purpose: text("purpose", { enum: ["register", "lookup", "login"] }).notNull(),
     firstName: text("first_name"),
     lastName: text("last_name"),
     birthDate: date("birth_date", { mode: "string" }),
@@ -138,7 +147,14 @@ export const emailVerifications = pgTable(
     consumedAt: tz("consumed_at"),
     createdAt: tz("created_at").notNull(),
   },
-  (t) => [index("email_verifications_event_email_created_idx").on(t.eventId, t.email, t.createdAt.desc())],
+  (t) => [
+    index("email_verifications_event_email_created_idx").on(t.eventId, t.email, t.createdAt.desc()),
+    // Минута между кодами и гашение прежнего у `login` идут по email (D-057).
+    index("email_verifications_login_idx")
+      .on(t.email, t.createdAt.desc())
+      .where(sql`${t.purpose} = 'login'`),
+    check("email_verifications_event_check", sql`(${t.purpose} = 'login') = (${t.eventId} is null)`),
+  ],
 );
 
 /** Письма ставятся в транзакции действия и уходят циклом отправки (D-013). */

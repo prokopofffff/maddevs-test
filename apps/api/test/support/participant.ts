@@ -63,3 +63,26 @@ export async function confirmedTicket(t: TestApp, eventId: string, data: Record<
 export function cancel(client: Client, token: string) {
   return client.post(`/api/registrations/${token}/cancel`);
 }
+
+export const requestLoginCode = (client: Client, email = "anna@example.com") =>
+  client.post("/api/participant/verifications", { email });
+
+/** Код входа: запрос, письмо `login_code` уходит шагом фоновых циклов, код читается из письма. */
+export async function receiveLoginCode(t: TestApp, email = "anna@example.com", client: Client = t.client()) {
+  const res = await requestLoginCode(client, email);
+  if (res.status !== 201) throw new Error(`login code ${res.status}: ${JSON.stringify(res.body)}`);
+  await t.runJobs(t.clock.now());
+  return { verificationId: res.body.verificationId as number, code: t.mailbox.lastCode(email.trim().toLowerCase(), "login_code") };
+}
+
+export const confirmLogin = (client: Client, verificationId: number, code: string) =>
+  client.post(`/api/participant/verifications/${verificationId}/confirm`, { code });
+
+/** Вход участника целиком: код, письмо, ввод; клиент остаётся с cookie `psid`. */
+export async function signInParticipant(t: TestApp, email = "anna@example.com") {
+  const browser = t.client();
+  const { verificationId, code } = await receiveLoginCode(t, email, browser);
+  const res = await confirmLogin(browser, verificationId, code);
+  if (res.status !== 200) throw new Error(`participant login ${res.status}: ${JSON.stringify(res.body)}`);
+  return browser;
+}
