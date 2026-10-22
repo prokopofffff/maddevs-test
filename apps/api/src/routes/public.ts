@@ -2,11 +2,12 @@ import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { events, registrations } from "../db/schema.ts";
 import { withTx, type Queryable } from "../db/tx.ts";
+import { pendingCorrection, pendingCorrectionView, submitCorrection } from "../domain/corrections.ts";
 import { countsFor, freeSeats, lockEvent, started } from "../domain/events.ts";
 import { cancel, DomainError, waitlistPosition, type RegistrationRow } from "../domain/registrations.ts";
 import { confirmVerification, issueVerification } from "../domain/verifications.ts";
 import { apiError, type Env } from "../http.ts";
-import { confirmCodeSchema, verificationRequestSchema } from "../schemas/participant.ts";
+import { confirmCodeSchema, participantDataSchema, verificationRequestSchema } from "../schemas/participant.ts";
 import { validate } from "../validation.ts";
 import { isUuid } from "./params.ts";
 
@@ -127,6 +128,7 @@ export const publicRoutes = new Hono<Env>()
       : [];
     if (!row) return apiError(c, 404, "not_found");
     const { registration: r, event } = row;
+    const pending = await pendingCorrection(db, r.id);
     return c.json(
       {
         event: {
@@ -146,6 +148,8 @@ export const publicRoutes = new Hono<Env>()
         ...(await positionOf(db, r)),
         checkedInAt: r.checkedInAt?.toISOString() ?? null,
         cancelledAt: r.cancelledAt?.toISOString() ?? null,
+        // Плашка «Заявка на рассмотрении» с предложенными значениями (D-031).
+        ...(pending ? { pendingCorrection: pendingCorrectionView(pending) } : {}),
       },
       200,
     );
@@ -177,4 +181,36 @@ export const publicRoutes = new Hono<Env>()
     // Письмо об отказе и, если место освободилось, о повышении закоммичены (D-014).
     outbox.wake();
     return c.json({ status: cancelled.status }, 200);
+  })
+  // Форма «Исправить данные»: заявка ждёт решения поддержки, данные регистрации пока прежние (D-031).
+  .post("/registrations/:token/corrections", validate("json", participantDataSchema), async (c) => {
+    const { db, clock } = c.var;
+    const token = c.req.param("token");
+    const [found] = TOKEN.test(token)
+      ? await db.select({ eventId: registrations.eventId }).from(registrations).where(eq(registrations.token, token))
+      : [];
+    if (!found) return apiError(c, 404, "not_found");
+
+    const submitted = await withTx(db, async (tx) => {
+      // Как у отказа: начало и отмена проверяются под блокировкой события (D-011, D-033).
+      const event = (await lockEvent(tx, found.eventId))!;
+      const [registration] = await tx
+        .select()
+        .from(registrations)
+        .where(eq(registrations.token, token))
+        .for("update");
+      return submitCorrection(tx, event, registration!, c.req.valid("json"), clock.now());
+    });
+    if ("error" in submitted) {
+      switch (submitted.error) {
+        case "event_started":
+        case "registration_cancelled":
+          return apiError(c, 409, submitted.error);
+        case "birth_date_in_future":
+          return apiError(c, 400, "validation_failed", { issues: [{ path: "birthDate", message: "in_future" }] });
+        case "correction_unchanged":
+          return apiError(c, 422, submitted.error);
+      }
+    }
+    return c.json({ pendingCorrection: pendingCorrectionView(submitted.correction) }, 201);
   });

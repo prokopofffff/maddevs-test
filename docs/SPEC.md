@@ -132,7 +132,7 @@
 | `new_first_name`, `new_last_name`, `new_birth_date` | | |
 | `status` | `text` | `pending` \| `accepted` \| `rejected` \| `withdrawn` |
 | `reason` | `text null` | причина отклонения |
-| `created_at`, `decided_at` | `timestamptz` | `decided_at` null до решения |
+| `created_at`, `decided_at` | `timestamptz` | `decided_at` null, пока заявка ждёт; у `withdrawn` — момент отзыва |
 | `decided_by` | `bigint null` | FK → `users` |
 
 Частичный unique `(registration_id) WHERE status = 'pending'`.
@@ -207,8 +207,9 @@ RETURNING …
 Ноль строк — запрос по `(event_id, ticket_code)` объясняет причину. Снятие — `UPDATE … SET checked_in_at = NULL WHERE id = $1 AND event_id = $2`, идемпотентно. От начала события не зависит (D-033).
 
 **Заявка на исправление** (D-031):
-- Подача — по личной ссылке, только у неотменённой регистрации и до начала; иначе `registration_cancelled` / `event_started` (D-033).
+- Подача — по личной ссылке, только у неотменённой регистрации и до начала; иначе `registration_cancelled` / `event_started` (D-033). Как и отказ, идёт под блокировкой события. Значения, совпадающие с текущими, — `correction_unchanged`.
 - Прежняя `pending` → `withdrawn` в той же транзакции.
+- Решение блокирует строку регистрации до заявки: порядок «событие → регистрация → заявка» общий с отказом и подачей.
 - «Принять»: `UPDATE correction_requests SET status = 'accepted', decided_at, decided_by WHERE id = $1 AND status = 'pending'`, затем новые значения в регистрацию и письмо `correction_accepted`. Ноль строк — `correction_not_pending`.
 - «Отклонить»: то же с `rejected`, необязательной `reason` и письмом `correction_rejected`.
 
@@ -265,9 +266,9 @@ Cookie `sid`: httpOnly, `SameSite=Lax`, `Path=/`, `Max-Age` 30 дней, `Secure
 | `GET /events/:id` | — | `200 {id, title, description, startsAt, timezone, minAge, freeSeats, started}` | `404` |
 | ★ `POST /events/:id/verifications` | `verificationRequestSchema`: `{purpose: "register", email, firstName, lastName, birthDate}` или `{purpose: "lookup", email}` | `201 {verificationId, expiresAt, resendAfter}` | `409 registration_closed` (только `register`), `422 below_min_age {minAge}`, `429 code_resend_too_soon {retryAfter}` |
 | ★ `POST /verifications/:id/confirm` | `confirmCodeSchema {code}` | `register`: `200 {result: "confirmed" \| "waitlisted" \| "existing", token, status, waitlistPosition?}`; `lookup`: `200 {result: "found", token}` | `400 code_invalid {attemptsLeft}`, `410 code_expired`, `410 code_attempts_exceeded`, `409 registration_closed`, `404 registration_not_found` (`lookup`) |
-| `GET /registrations/:token` | — | `200 {event: {id, title, startsAt, timezone, started}, status, email, firstName, lastName, birthDate, ticketCode, waitlistPosition?, checkedInAt, cancelledAt, pendingCorrection?}`; `ticketCode` — `null`, если регистрация не подтверждена | `404` |
+| `GET /registrations/:token` | — | `200 {event: {id, title, startsAt, timezone, started}, status, email, firstName, lastName, birthDate, ticketCode, waitlistPosition?, checkedInAt, cancelledAt, pendingCorrection?}`; `ticketCode` — `null`, если регистрация не подтверждена; `pendingCorrection` = `{firstName, lastName, birthDate, createdAt}` — только пока заявка ждёт | `404` |
 | ★ `POST /registrations/:token/cancel` | — | `200 {status: "cancelled"}` | `409 event_started`, `409 already_checked_in` |
-| ★ `POST /registrations/:token/corrections` | `participantDataSchema {firstName, lastName, birthDate}` | `201 {pendingCorrection}` | `409 event_started`, `409 registration_cancelled` |
+| ★ `POST /registrations/:token/corrections` | `participantDataSchema {firstName, lastName, birthDate}` | `201 {pendingCorrection}` | `409 event_started`, `409 registration_cancelled`, `422 correction_unchanged` — значения совпадают с текущими |
 
 Порядок проверок в `POST /events/:id/verifications`:
 1. Событие не найдено → `404`.
@@ -294,8 +295,8 @@ Cookie `sid`: httpOnly, `SameSite=Lax`, `Path=/`, `Max-Age` 30 дней, `Secure
 | Метод и путь | Тело | Ответ | Ошибки |
 |---|---|---|---|
 | `GET /support/corrections` | — | `200 {corrections: [{id, createdAt, event: {id, title, startsAt, timezone, minAge}, email, old, new, belowMinAgeAfter}]}` — только `pending`, от старых к новым | — |
-| `POST /support/corrections/:id/accept` | — | `200 {status: "accepted"}` | `409 correction_not_pending` |
-| `POST /support/corrections/:id/reject` | `rejectSchema {reason?}` | `200 {status: "rejected"}` | `409 correction_not_pending` |
+| `POST /support/corrections/:id/accept` | — | `200 {status: "accepted"}` | `409 correction_not_pending`, `404` |
+| `POST /support/corrections/:id/reject` | `rejectSchema {reason?}` — до 500 символов после trim, пустая — без причины | `200 {status: "rejected"}` | `409 correction_not_pending`, `404` |
 | `GET /support/events` | — | `200 {events: [{id, title, organizerEmail, startsAt, timezone, counts}]}` | — |
 | `GET /support/events/:id/registrations` | — | как у организатора, только чтение | `404` |
 

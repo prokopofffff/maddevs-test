@@ -79,6 +79,33 @@ export const registrations = pgTable(
   ],
 );
 
+/** Заявки на исправление имени, фамилии и даты рождения; на регистрацию не больше одной ожидающей (D-031). */
+export const correctionRequests = pgTable(
+  "correction_requests",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    registrationId: bigint("registration_id", { mode: "number" })
+      .notNull()
+      .references(() => registrations.id),
+    oldFirstName: text("old_first_name").notNull(),
+    oldLastName: text("old_last_name").notNull(),
+    oldBirthDate: date("old_birth_date", { mode: "string" }).notNull(),
+    newFirstName: text("new_first_name").notNull(),
+    newLastName: text("new_last_name").notNull(),
+    newBirthDate: date("new_birth_date", { mode: "string" }).notNull(),
+    status: text("status", { enum: ["pending", "accepted", "rejected", "withdrawn"] }).notNull(),
+    reason: text("reason"),
+    createdAt: tz("created_at").notNull(),
+    decidedAt: tz("decided_at"),
+    decidedBy: bigint("decided_by", { mode: "number" }).references(() => users.id),
+  },
+  (t) => [
+    uniqueIndex("correction_requests_pending_key")
+      .on(t.registrationId)
+      .where(sql`${t.status} = 'pending'`),
+  ],
+);
+
 /** Коды подтверждения email; `register` хранит данные формы до верного кода (D-007, D-039). */
 export const emailVerifications = pgTable(
   "email_verifications",

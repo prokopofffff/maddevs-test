@@ -7,6 +7,7 @@ import { confirmedMail } from "../mail/templates/confirmed.ts";
 import { promotedMail } from "../mail/templates/promoted.ts";
 import { waitlistedMail } from "../mail/templates/waitlisted.ts";
 import { newRegistrationToken, newTicketCode } from "./codes.ts";
+import { withdrawPending } from "./corrections.ts";
 import { countsFor, started, type EventRow } from "./events.ts";
 
 export type RegistrationRow = typeof registrations.$inferSelect;
@@ -192,6 +193,8 @@ export async function cancel(tx: Tx, event: EventRow, registration: Registration
     .set({ status: "cancelled", cancelledAt: now })
     .where(eq(registrations.id, registration.id))
     .returning();
+  // Ожидающая заявка на исправление уходит из очереди вместе с регистрацией (D-031).
+  await withdrawPending(tx, registration.id, now);
   await enqueue(
     tx,
     {

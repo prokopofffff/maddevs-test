@@ -11,7 +11,8 @@
     "start": "tsx src/index.ts",
     "test": "vitest run",
     "typecheck": "tsc -p .",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "admin:create": "tsx src/scripts/admin-create.ts"
   },
   "dependencies": {
     "@date-fns/tz": "^1.5.0",

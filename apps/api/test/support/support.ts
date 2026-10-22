@@ -1,15 +1,12 @@
-import { hashPassword } from "../../src/auth/password.ts";
-import { users } from "../../src/db/schema.ts";
+import { createAccount } from "../../src/auth/accounts.ts";
 import { testDb } from "../setup/worker-db.ts";
 import type { Client, TestApp } from "./test-app.ts";
 
 let seq = 0;
 
-/** Учётная запись поддержки, как её создаёт `pnpm admin:create` (D-030), и вход в неё. */
+/** Учётная запись поддержки — той же функцией, что и `pnpm admin:create` (D-030), — и вход в неё. */
 export async function signInSupport(t: TestApp, email = `support${++seq}@example.com`) {
-  await testDb()
-    .insert(users)
-    .values({ email, passwordHash: await hashPassword("support pass"), role: "support", createdAt: t.clock.now() });
+  await createAccount(testDb(), { email, password: "support pass", role: "support", now: t.clock.now() });
   const browser = t.client();
   const res = await browser.post("/api/auth/login", { email, password: "support pass" });
   if (res.status !== 200) throw new Error(`login ${res.status}: ${JSON.stringify(res.body)}`);

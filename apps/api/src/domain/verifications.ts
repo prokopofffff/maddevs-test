@@ -5,7 +5,7 @@ import { withTx, type Tx } from "../db/tx.ts";
 import { enqueue } from "../mail/outbox.ts";
 import { codeMail } from "../mail/templates/code.ts";
 import type { VerificationRequest } from "../schemas/participant.ts";
-import { belowMinAge } from "./age.ts";
+import { belowMinAge, isFutureDate } from "./age.ts";
 import { newVerificationCode } from "./codes.ts";
 import { lockEvent, started, type EventRow } from "./events.ts";
 import { activeRegistration, allocate, type MailContext } from "./registrations.ts";
@@ -13,9 +13,6 @@ import { activeRegistration, allocate, type MailContext } from "./registrations.
 const CODE_TTL_MS = 10 * 60_000;
 const RESEND_MS = 60_000;
 export const MAX_CODE_ATTEMPTS = 5;
-
-/** Сегодняшняя дата в UTC: дата рождения позже неё — точно в будущем. */
-const isFutureDate = (date: string, now: Date) => date > now.toISOString().slice(0, 10);
 
 /**
  * Выдача кода (SPEC, раздел 4, порядок проверок). Начало и возраст проверяются только у `register`:

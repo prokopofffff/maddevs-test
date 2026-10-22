@@ -70,6 +70,21 @@ export const buttonBlock = (label: string, href: string, note: string) =>
 export const paragraphBlock = (text: string) =>
   row("padding:24px 32px 0;", `<p style="margin:0;font-size:16px;line-height:24px;color:${INK};">${escapeHtml(text)}</p>`);
 
+/** Пары «подпись — значение» строками, как список данных участника в S4. */
+export const detailsBlock = (rows: [label: string, value: string][]) =>
+  row(
+    "padding:16px 32px 0;",
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tbody>` +
+      rows
+        .map(
+          ([label, value]) =>
+            `<tr><td style="padding:8px 0;border-bottom:1px solid ${LINE};font-family:${FONT};font-size:14px;line-height:20px;color:${MUTED};">${escapeHtml(label)}</td>` +
+            `<td align="right" style="padding:8px 0;border-bottom:1px solid ${LINE};font-family:${FONT};font-size:16px;line-height:24px;font-weight:700;color:${INK};">${escapeHtml(value)}</td></tr>`,
+        )
+        .join("") +
+      `</tbody></table>`,
+  );
+
 /** Письмо целиком: фон, карточка, шапка с названием сервиса, блоки и мелкий текст внизу. */
 export function layout(blocks: string[], footer: string) {
   return (

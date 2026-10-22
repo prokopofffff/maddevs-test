@@ -13,7 +13,7 @@ import { eventInputSchema, eventPatchSchema } from "../schemas/event.ts";
 import { checkinSchema } from "../schemas/ticket.ts";
 import { instantToLocal, localToInstant } from "../time.ts";
 import { validate } from "../validation.ts";
-import { requireUser } from "./auth.ts";
+import { requireRole, requireUser } from "./auth.ts";
 import { isUuid } from "./params.ts";
 
 const organizerEvent = (e: EventRow, now: Date) => ({
@@ -39,7 +39,8 @@ async function ownEvent(db: Queryable, id: string, organizerId: number) {
 }
 
 export const organizerRoutes = new Hono<Env>()
-  .use(requireUser)
+  // Своих событий у поддержки нет: организаторские маршруты отвечают ей `404` (D-030).
+  .use(requireUser, requireRole("organizer"))
   .get("/events", async (c) => {
     const { db, clock, user } = c.var;
     const now = clock.now();
