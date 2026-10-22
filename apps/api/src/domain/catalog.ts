@@ -25,6 +25,9 @@ export interface CatalogEvent {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** Только четырёхзначный год от 0001: `Date` принимает ещё `+010000-…` и `0000-…`, а Postgres на таком `timestamptz` падает с 500. */
+const CURSOR_INSTANT = /^(?!0000)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+
 const encodeCursor = (event: Pick<EventRow, "startsAt" | "id">) =>
   Buffer.from(JSON.stringify([event.startsAt.toISOString(), event.id])).toString("base64url");
 
@@ -34,7 +37,7 @@ function decodeCursor(cursor: string): { startsAt: Date; id: string } | undefine
     const value: unknown = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8"));
     if (!Array.isArray(value) || value.length !== 2) return;
     const [iso, id] = value;
-    if (typeof iso !== "string" || typeof id !== "string" || !UUID.test(id)) return;
+    if (typeof iso !== "string" || typeof id !== "string" || !UUID.test(id) || !CURSOR_INSTANT.test(iso)) return;
     const startsAt = new Date(iso);
     if (Number.isNaN(startsAt.getTime()) || startsAt.toISOString() !== iso) return;
     return { startsAt, id };

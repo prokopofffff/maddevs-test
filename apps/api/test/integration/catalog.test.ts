@@ -187,6 +187,14 @@ describe("каталог событий: GET /api/events", () => {
       expect(res.status).toBe(400);
       expect(res.body).toEqual({ error: "validation_failed", issues: [{ path: "cursor", message: "invalid" }] });
     }
+    // Годы, которые `Date` принимает, а `timestamptz` нет: без проверки это 500 из Postgres.
+    const uuid = "00000000-0000-4000-8000-000000000000";
+    for (const iso of ["+010000-01-01T00:00:00.000Z", "-000001-01-01T00:00:00.000Z", "0000-01-01T00:00:00.000Z"]) {
+      const cursor = Buffer.from(JSON.stringify([iso, uuid])).toString("base64url");
+      const res = await t.client().get(`/api/events?cursor=${cursor}`);
+      expect(res.status, iso).toBe(400);
+      expect(res.body).toEqual({ error: "validation_failed", issues: [{ path: "cursor", message: "invalid" }] });
+    }
     const tz = await t.client().get("/api/events?tz=Mars/Base");
     expect(tz.status).toBe(400);
     expect(tz.body).toMatchObject({ error: "validation_failed", issues: [{ path: "tz" }] });
