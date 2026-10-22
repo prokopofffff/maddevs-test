@@ -1237,3 +1237,94 @@
 ## 2026-10-22 21:37:06 +0700 — session 95966e22
 
 > все верно
+
+## 2026-10-22 21:54:34 +0700 — session 95966e22
+
+> <task-notification>
+> <task-id>ad6a0f72abe1a2888</task-id>
+> <tool-use-id>toolu_01TVsrCMcAeDPpYCx2Q6QpfW</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-jonya-ko-conductor-workspaces-maddevs-test-missoula/95966e22-a5e1-4c4f-b28d-6151ae02ee5d/tasks/ad6a0f72abe1a2888.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Implement Task 0: decisions and SPEC" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>Status: DONE
+> 
+> Commits:
+> - `20a00da` Решения D-056–D-061 и спецификация каталога и входа участника
+> - `1cae573` SPEC: уточнено, когда myRegistration равен null (new commit, not an amend)
+> 
+> Fix round 1: the `GET /events/:id` row in `docs/SPEC.md` now says `myRegistration` is the non-cancelled registration of this email for this event, otherwise `null`. It also says the field is absent for a guest without a participant session. I added one line to the existing DEVLOG entry.
+> 
+> Verification: I re-read the diff hunk. It is docs only, so no tests were run.
+> 
+> Concerns: the earlier ones stand. The cookie name is `psid`, while the design doc §6.2 says `participant_session`. The commit trailer is the Sonnet line from the attribution reminder, not the Opus line from common-context.md.
+> 
+> Report (with the fix-round section appended): `/Users/jonya_ko/conductor/workspaces/maddevs-test/missoula/.superpowers/sdd/2026-10-22-catalog-main-page/task-0-report.md`</result>
+> <usage><subagent_tokens>99571</subagent_tokens><tool_uses>2</tool_uses><duration_ms>9862</duration_ms></usage>
+> </task-notification>
+
+## 2026-10-22 22:12:30 +0700 — session 95966e22
+
+> <task-notification>
+> <task-id>ada0641277d21c88f</task-id>
+> <tool-use-id>toolu_017SaL6VdGzBTaNM615DRyCu</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-jonya-ko-conductor-workspaces-maddevs-test-missoula/95966e22-a5e1-4c4f-b28d-6151ae02ee5d/tasks/ada0641277d21c88f.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Implement Task 3: catalog API" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>Status: DONE (fix round 1)
+> Commit: 9cbdb5c "Каталог API: курсор с годом вне 0001–9999 даёт 400, а не 500". It is a new commit on top of b48fae1, not an amend.
+> Fix: `decodeCursor` now requires the instant to match `/^(?!0000)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/`. This is in addition to the existing Date round-trip and uuid checks.
+> Tests:
+> - `catalog.test.ts` now sends cursors with `+010000-…`, `-000001-…` and `0000-…`; each expects 400 `validation_failed` with path `cursor`.
+> - Without the fix the new test fails with `expected 500 to be 400`.
+> - With the fix, `TEST_DATABASE_URL=postgres://app:app@localhost:5455/postgres pnpm --filter @app/api test catalog` gives 10 of 10 passed. The full API suite gives 23 files and 156 tests passed. Typecheck and lint are clean.
+> Concerns: none. `docs/PROMPTS.md` is still modified by the hook and left unstaged.
+> Report: /Users/jonya_ko/conductor/workspaces/maddevs-test/missoula/.superpowers/sdd/2026-10-22-catalog-main-page/task-3-report.md. The fix report is appended, and DEVLOG has a new entry.</result>
+> <usage><subagent_tokens>80059</subagent_tokens><tool_uses>3</tool_uses><duration_ms>50896</duration_ms></usage>
+> </task-notification>
+
+## 2026-10-22 22:21:56 +0700 — session 95966e22
+
+> <task-notification>
+> <task-id>ae6cd8d0808ec50d0</task-id>
+> <tool-use-id>toolu_01TL5V7MQJNCLAVnbAGqFhwD</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-jonya-ko-conductor-workspaces-maddevs-test-missoula/95966e22-a5e1-4c4f-b28d-6151ae02ee5d/tasks/ae6cd8d0808ec50d0.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Implement Task 4: catalog page and header" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>Status: DONE. The grid now has 3 columns at 1280 px and 1 at 375 px.
+> 
+> - **Commit:** 2510bdd "Каталог: сетка 3 колонки на ноутбуке, 1 на телефоне (дизайн §8.2)" (a new commit, not an amend).
+> - **Change:** `.catalog__grid` in `app.css` uses `@container frame` breakpoints: 1 column by default, 2 from 600 px, 3 from 900 px. The `/` row in SPEC is back to «3 колонки на ноутбуке, 1 на телефоне».
+> - **D-062:** never mentioned the grid, so it is unchanged. The DEVLOG has a new fix entry, and the old entry about 4 columns is marked obsolete.
+> - **Verification:** `pnpm typecheck` shows 0 errors and `pnpm lint` exits 0. A throwaway Playwright run on the built app with seed data gave 3 columns at 1280 px, 2 at 768 px and 1 at 375 px, with no horizontal overflow. I retook the screenshots at 1280 and 375 px. I also re-ran the earlier checklist for past events, city, age, `?city=` after reload, and login, with the same results.
+> - **Not re-run:** I did not re-run e2e after this CSS-only change.
+> - **Report:** the fix report is appended to `/Users/jonya_ko/conductor/workspaces/maddevs-test/missoula/.superpowers/sdd/2026-10-22-catalog-main-page/task-4-report.md`, and the old «4 columns» concern there is obsolete.</result>
+> <usage><subagent_tokens>115906</subagent_tokens><tool_uses>6</tool_uses><duration_ms>159012</duration_ms></usage>
+> </task-notification>
+
+## 2026-10-22 23:01:41 +0700 — session 95966e22
+
+> <task-notification>
+> <task-id>a76563e6261f67474</task-id>
+> <tool-use-id>toolu_01GLtUaFXWrwuJdcKUYF1FDr</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-jonya-ko-conductor-workspaces-maddevs-test-missoula/95966e22-a5e1-4c4f-b28d-6151ae02ee5d/tasks/a76563e6261f67474.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Implement Task 12: e2e catalog sign-in" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>Status: DONE (fix round 1)
+> 
+> Commit: bf01dd8 "README: точнее о том, что проверено e2e, что одноразово, а что нет". It is a new commit with a DEVLOG entry, and the earlier a575157 is untouched.
+> 
+> - **Walked-once list:** it now names only what DEVLOG confirms for the throwaway Playwright scripts. For the catalog that is city and age filters, «Прошедшие», search and «Сбросить» (task 4). For `/me` it is the «Прошедшие» tab, logout from the header and the revisit showing «Вы уже зарегистрированы» (tasks 7, 9, 11).
+> - **Not verified:** the expired session (401 branch), «Показать ещё», and the «Не отмечены на входе» and «Место не освободилось» states on `/me`.
+> - **Manual-check section:** the «повторить по разделу» claim is gone. README now says that section covers login, the tabs and registration without a code, but not logout or the expired session.
+> - **CI sentence:** green on `main` before this branch (last DEVLOG run `12b4ff0`), not run on this branch. Local results are listed: `pnpm e2e` gives 5 passed, API tests 27 files / 189 tests, and typecheck and lint are clean.
+> - **Verification:** docs-only. I re-read the hunk against the DEVLOG entries for tasks 4, 7, 9, 11 and 12.
+> 
+> Concerns: none.
+> 
+> Report: /Users/jonya_ko/conductor/workspaces/maddevs-test/missoula/.superpowers/sdd/2026-10-22-catalog-main-page/task-12-report.md</result>
+> <usage><subagent_tokens>81702</subagent_tokens><tool_uses>5</tool_uses><duration_ms>26350</duration_ms></usage>
+> </task-notification>
