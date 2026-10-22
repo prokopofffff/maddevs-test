@@ -10,4 +10,8 @@ await sql.end();
 process.env.DATABASE_URL = databaseUrl;
 process.env.PORT = String(port);
 process.env.PUBLIC_URL = `http://localhost:${port}`;
+// Все вкладки e2e ходят с одного адреса: лимиты подняты, чтобы rate limit не ронял сценарии (D-006).
+process.env.RATE_LIMIT_GLOBAL = "100000";
+process.env.RATE_LIMIT_AUTH = "100000";
+process.env.RATE_LIMIT_PUBLIC = "100000";
 await import("../apps/api/src/index.ts");
