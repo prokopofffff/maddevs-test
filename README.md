@@ -67,22 +67,22 @@ POSTGRES_PORT=5455 API_PORT=3001 PUBLIC_URL=http://localhost:3001 docker compose
 ```sh
 pnpm install
 pnpm dev       # Postgres и Mailpit из compose, API с перезапуском по правкам и Vite
-pnpm db:seed   # в другом терминале, по желанию
 ```
 
-- Приложение: <http://localhost:5173> (Vite проксирует `/api` на API на :3000)
-- Mailpit: <http://localhost:8025>
+`pnpm dev` (`scripts/dev.mjs`) поднимает контейнеры `postgres` и `mailpit`, ждёт их готовности и запускает API и Vite. Порты по умолчанию — 5432, 1025, 8025, 3000 и 5173. Если порт занят, берётся следующий свободный. Адреса и готовая команда сида печатаются при старте:
 
-`pnpm dev` поднимает контейнеры `postgres` и `mailpit` и ждёт их готовности. Если они уже работают — переиспользует. После Ctrl+C контейнеры остаются, остановить: `docker compose stop`. Ссылки в письмах ведут на Vite.
-
-Порты сдвигаются переменными: `POSTGRES_PORT`, `MAILPIT_SMTP_PORT`, `MAILPIT_UI_PORT` — для контейнеров и подключения к ним, `PORT` — API, `WEB_PORT` — Vite. Занятый порт Vite — ошибка, а не тихий переход на соседний, иначе ссылки в письмах вели бы не туда (D-054). `pnpm db:seed` и `db:reset` при сдвинутом Postgres берут `DATABASE_URL`:
-
-```sh
-POSTGRES_PORT=5455 PORT=3001 WEB_PORT=5174 pnpm dev
-DATABASE_URL=postgres://app:app@localhost:5455/app PUBLIC_URL=http://localhost:5174 pnpm db:seed
+```
+  Приложение: http://localhost:5174
+  API:        http://localhost:3001
+  Mailpit:    http://localhost:8025
+  Postgres:   postgres://app:app@localhost:5433/app
+  Сид:        DATABASE_URL=postgres://app:app@localhost:5433/app PUBLIC_URL=http://localhost:5174 pnpm db:seed
 ```
 
-Контейнер `api` из compose и `pnpm dev` используют одну базу `app` и по умолчанию один порт 3000 — одновременно их не запускают.
+- Ссылки в письмах ведут на Vite; он проксирует `/api` на API.
+- Уже работающие контейнеры переиспользуются вместе с их портами. После Ctrl+C они остаются, остановить: `docker compose stop`.
+- Порт можно задать явно: `POSTGRES_PORT`, `MAILPIT_SMTP_PORT`, `MAILPIT_UI_PORT`, `PORT` (API), `WEB_PORT` (Vite). Заданный порт не сдвигается: если он занят, запуск падает.
+- Контейнер `api` из compose и `pnpm dev` работают с одной базой `app`.
 
 ## Тесты
 

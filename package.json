@@ -7,7 +7,7 @@
     "node": ">=22.12"
   },
   "scripts": {
-    "dev": "docker compose up -d --wait postgres mailpit && pnpm --parallel --filter @app/api --filter @app/web dev",
+    "dev": "node scripts/dev.mjs",
     "build": "pnpm --filter @app/web build",
     "start": "pnpm --filter @app/api start",
     "test": "pnpm --filter @app/api test",
