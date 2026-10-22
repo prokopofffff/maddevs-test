@@ -1,7 +1,7 @@
-import type { RegistrationForm as FormData, VerificationRequest } from "@app/api/schemas";
+import type { ParticipantData, RegistrationForm as FormData, VerificationRequest } from "@app/api/schemas";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { useNavigate, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 import { api, ApiError, client } from "../api.ts";
 import { AgeBadge } from "../components/AgeBadge.tsx";
 import { ErrorBanner } from "../components/Banner.tsx";
@@ -10,6 +10,7 @@ import { Icon } from "../components/Icon.tsx";
 import { PageSkeleton } from "../components/Skeleton.tsx";
 import { errorText } from "../errors.ts";
 import { categoryLabel, formatEventTime, fullPlace, seatsLeft } from "../format.ts";
+import { participantKey, participantRegistrationsKey, useParticipant } from "../participant.ts";
 import { CodeStep } from "./event/CodeStep.tsx";
 import { LookupForm } from "./event/LookupForm.tsx";
 import { RegistrationForm } from "./event/RegistrationForm.tsx";
@@ -26,15 +27,22 @@ const isCode = (error: unknown, code: string): error is ApiError => error instan
 /**
  * Страница события по ссылке: S1-Event (описание, свободные места, форма) → S2-Code (ввод кода) → S3-Result.
  * «Уже регистрировались?» ведёт через тот же ввод кода сразу на `/r/:token` (D-039).
+ * Вошедший участник (D-057) регистрируется без кода одной кнопкой (D-058), а если уже зарегистрирован — видит ссылку
+ * на свою регистрацию; «Уже регистрировались?» ему не нужно.
  */
 export function PublicEventPage() {
   const { eventId = "" } = useParams();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const participant = useParticipant();
+  const signedIn = participant.data ?? null;
+  // Ответ события зависит от cookie (`myRegistration`), поэтому email в ключе: вход и выход перечитывают событие.
+  // Пока неизвестно, вошёл ли участник, не запрашиваем — иначе гость успел бы увидеть форму с кодом.
   const eventKey = ["event", eventId];
   const event = useQuery({
-    queryKey: eventKey,
+    queryKey: [...eventKey, signedIn?.email ?? null],
     queryFn: () => api(client.api.events[":id"].$get({ param: { id: eventId } })),
+    enabled: !participant.isPending,
   });
   const [step, setStep] = useState<Step>({ name: "form" });
   const [data, setData] = useState<FormData>();
@@ -83,6 +91,20 @@ export function PublicEventPage() {
         toCode(verificationId, Date.now() + Number(error.details.retryAfter) * 1000);
       }
       onClosed(error);
+    },
+  });
+  const registerSignedIn = useMutation({
+    mutationFn: (input: ParticipantData) =>
+      api(client.api.events[":id"].registrations.$post({ param: { id: eventId }, json: input })),
+    onSuccess: (res) => {
+      setStep({ name: "result", result: res.result, token: res.token });
+      void queryClient.invalidateQueries({ queryKey: eventKey });
+      void queryClient.invalidateQueries({ queryKey: participantRegistrationsKey });
+    },
+    onError: (error) => {
+      onClosed(error);
+      // Сессия истекла, пока человек заполнял форму: страница возвращается к гостевой.
+      if (isCode(error, "unauthorized")) queryClient.setQueryData(participantKey, null);
     },
   });
   const confirm = useMutation({
@@ -158,7 +180,20 @@ export function PublicEventPage() {
             </div>
             <div className="page__side">
               <div className="panel">
-                {event.data.started ? (
+                {signedIn && event.data.myRegistration ? (
+                  <>
+                    <p className="seats seats--available">
+                      <Icon name="check" />
+                      Вы уже зарегистрированы
+                    </p>
+                    <Link
+                      className="button button--secondary button--block"
+                      to={`/r/${event.data.myRegistration.token}`}
+                    >
+                      Открыть мою регистрацию
+                    </Link>
+                  </>
+                ) : event.data.started ? (
                   <div className="banner" role="status">
                     <Icon name="info" />
                     <div className="banner__body">
@@ -178,20 +213,37 @@ export function PublicEventPage() {
                         Мест нет — вы встанете в лист ожидания
                       </p>
                     )}
-                    <RegistrationForm
-                      initial={data}
-                      pending={request.isPending}
-                      error={request.error}
-                      onSubmit={(input) => request.mutate({ purpose: "register", ...input })}
-                    />
+                    {signedIn ? (
+                      <RegistrationForm
+                        lockedEmail={signedIn.email}
+                        initial={signedIn.lastData ?? undefined}
+                        pending={registerSignedIn.isPending}
+                        error={registerSignedIn.error}
+                        onSubmit={(input) => registerSignedIn.mutate(input)}
+                      />
+                    ) : (
+                      <>
+                        <RegistrationForm
+                          initial={data}
+                          pending={request.isPending}
+                          error={request.error}
+                          onSubmit={(input) => request.mutate({ purpose: "register", ...input })}
+                        />
+                        <Link className="link" to={`/me?next=/e/${eventId}`}>
+                          Войти, чтобы регистрироваться без кода
+                        </Link>
+                      </>
+                    )}
                   </>
                 )}
-                <LookupForm
-                  initial={lookupEmail}
-                  pending={lookup.isPending}
-                  error={lookup.error}
-                  onSubmit={(email) => lookup.mutate({ purpose: "lookup", email })}
-                />
+                {!signedIn && (
+                  <LookupForm
+                    initial={lookupEmail}
+                    pending={lookup.isPending}
+                    error={lookup.error}
+                    onSubmit={(email) => lookup.mutate({ purpose: "lookup", email })}
+                  />
+                )}
               </div>
             </div>
           </>
