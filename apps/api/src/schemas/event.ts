@@ -12,7 +12,7 @@ export type AgeRating = (typeof AGE_RATINGS)[number];
 
 const timezones = new Set(["UTC", ...Intl.supportedValuesOf("timeZone")]);
 
-/** Пояс из IANA: им же проверяются `timezone` события и `tz` посетителя в каталоге (D-061). */
+/** Пояс из IANA для `timezone` события: имя должно быть из списка, который показывает форма (D-061). */
 export const isTimezone = (tz: string) => timezones.has(tz);
 
 /** Дата и время в поясе события, как их вводит организатор: `YYYY-MM-DDTHH:mm` (D-015). */

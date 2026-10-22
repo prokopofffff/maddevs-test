@@ -94,6 +94,20 @@ describe("каталог событий: GET /api/events", () => {
     expect(await titles(t, "?when=week&tz=Europe/London")).toContain("8 ноября, 00:30");
   });
 
+  it("tz принимает любое имя пояса, которое понимает рантайм: Safari шлёт Asia/Kolkata, а не Asia/Calcutta", async () => {
+    const t = testApp({ now: NOW });
+    const organizer = await signUpOrganizer(t.client());
+    // Граница дня Калькутты (UTC+5:30) — 18:30 UTC: 18:00 UTC ещё 1 ноября, 19:00 UTC уже 2 ноября.
+    await create(organizer, { title: "до границы", startsLocal: "2026-11-01T18:00" });
+    await create(organizer, { title: "после границы", startsLocal: "2026-11-01T19:00" });
+
+    for (const tz of ["Asia/Kolkata", "Europe/Kyiv", "Asia/Ho_Chi_Minh"]) {
+      expect((await t.client().get(`/api/events?when=today&tz=${tz}`)).status, tz).toBe(200);
+    }
+    expect(await titles(t, "?when=today&tz=Asia/Kolkata")).toEqual(["до границы"]);
+    expect(await titles(t, "?when=today&tz=Asia/Calcutta")).toEqual(["до границы"]);
+  });
+
   it("hasSeats=1 исключает заполненное и событие с листом ожидания", async () => {
     const t = testApp({ now: NOW });
     await createEvent(t, { title: "свободное", limit: 2 });

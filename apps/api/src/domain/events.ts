@@ -45,13 +45,13 @@ export async function countsFor(db: Queryable, list: Pick<EventRow, "id" | "seat
   return result;
 }
 
-/** Лимит минус подтверждённые, не меньше нуля; ноль при непустом листе ожидания и после начала (D-026, D-032, D-033). */
 /** Строка события под блокировкой: первый шаг любой транзакции, меняющей места (D-011). */
 export async function lockEvent(tx: Queryable, id: string): Promise<EventRow | undefined> {
   const [event] = await tx.select().from(events).where(eq(events.id, id)).for("update");
   return event;
 }
 
+/** Лимит минус подтверждённые, не меньше нуля; ноль при непустом листе ожидания и после начала (D-026, D-032, D-033). */
 export function freeSeats(event: Pick<EventRow, "startsAt">, counts: Counts, now: Date) {
   if (started(event, now) || counts.waitlisted > 0) return 0;
   return Math.max(0, counts.limit - counts.confirmed);
