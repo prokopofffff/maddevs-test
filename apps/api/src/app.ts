@@ -6,6 +6,7 @@ import type { Live } from "./live.ts";
 import { authRoutes } from "./routes/auth.ts";
 import { organizerRoutes } from "./routes/organizer.ts";
 import { publicRoutes } from "./routes/public.ts";
+import { supportRoutes } from "./routes/support.ts";
 import { apiError } from "./http.ts";
 import { createRateLimits, type RateLimitConfig } from "./rate-limit.ts";
 
@@ -54,6 +55,7 @@ export function createApp({ db, clock, config, live, outbox = noWake }: AppDeps)
     })
     .route("/auth", authRoutes)
     .route("/organizer", organizerRoutes)
+    .route("/support", supportRoutes)
     .route("/", publicRoutes)
     // `notFound` вложенного приложения Hono не вызывает: неизвестный маршрут API ловим явно.
     .all("*", (c) => apiError(c, 404, "not_found"));

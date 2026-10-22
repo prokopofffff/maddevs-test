@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
+import { createAccount } from "../auth/accounts.ts";
 import { hashPassword, verifyPassword } from "../auth/password.ts";
 import {
   clearSessionCookie,
@@ -9,6 +10,7 @@ import {
   findSessionUser,
   readSessionCookie,
   writeSessionCookie,
+  type SessionUser,
 } from "../auth/session.ts";
 import { users } from "../db/schema.ts";
 import { apiError, type Env } from "../http.ts";
@@ -23,6 +25,16 @@ export const requireUser = createMiddleware<Env>(async (c, next) => {
   c.set("user", user);
   await next();
 });
+
+/**
+ * Пропускает только роль `role`; остальным — `404`, как на чужое событие (D-005, D-030).
+ * Ставится после `requireUser`.
+ */
+export const requireRole = (role: SessionUser["role"]) =>
+  createMiddleware<Env>(async (c, next) => {
+    if (c.var.user.role !== role) return apiError(c, 404, "not_found");
+    await next();
+  });
 
 // Хеш для несуществующего email: проверка пароля идёт всегда, время ответа не выдаёт, есть ли аккаунт.
 const dummyHash = hashPassword("dummy password");
@@ -39,11 +51,7 @@ export const authRoutes = new Hono<Env>()
     const { db, clock, config } = c.var;
     const now = clock.now();
     // Signup создаёт только организатора (D-030).
-    const [user] = await db
-      .insert(users)
-      .values({ email, passwordHash: await hashPassword(password), role: "organizer", createdAt: now })
-      .onConflictDoNothing({ target: users.email })
-      .returning();
+    const user = await createAccount(db, { email, password, role: "organizer", now });
     if (!user) return apiError(c, 409, "email_taken");
     writeSessionCookie(c, await createSession(db, user.id, now), config.cookieSecure);
     return c.json({ user: publicUser(user) }, 201);

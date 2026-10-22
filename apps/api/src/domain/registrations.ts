@@ -6,7 +6,9 @@ import { cancelledMail } from "../mail/templates/cancelled.ts";
 import { confirmedMail } from "../mail/templates/confirmed.ts";
 import { promotedMail } from "../mail/templates/promoted.ts";
 import { waitlistedMail } from "../mail/templates/waitlisted.ts";
+import { ageOnEventDay, belowMinAge } from "./age.ts";
 import { newRegistrationToken, newTicketCode } from "./codes.ts";
+import { withdrawPending } from "./corrections.ts";
 import { countsFor, started, type EventRow } from "./events.ts";
 
 export type RegistrationRow = typeof registrations.$inferSelect;
@@ -73,6 +75,24 @@ export async function eventRegistrations(db: Queryable, eventId: string) {
     );
   let position = 0;
   return rows.map((row) => ({ row, waitlistPosition: row.status === "waitlisted" ? ++position : null }));
+}
+
+/** Список участников для организатора и поддержки (только чтение): возраст и предупреждение — на день события (D-017). */
+export async function registrationList(db: Queryable, event: EventRow) {
+  const list = await eventRegistrations(db, event.id);
+  return list.map(({ row: r, waitlistPosition }) => ({
+    id: r.id,
+    firstName: r.firstName,
+    lastName: r.lastName,
+    email: r.email,
+    birthDate: r.birthDate,
+    ageOnEventDay: ageOnEventDay(r.birthDate, event),
+    belowMinAge: belowMinAge(r.birthDate, event),
+    status: r.status,
+    waitlistPosition,
+    confirmedAt: r.confirmedAt?.toISOString() ?? null,
+    checkedInAt: r.checkedInAt?.toISOString() ?? null,
+  }));
 }
 
 /**
@@ -192,6 +212,8 @@ export async function cancel(tx: Tx, event: EventRow, registration: Registration
     .set({ status: "cancelled", cancelledAt: now })
     .where(eq(registrations.id, registration.id))
     .returning();
+  // Ожидающая заявка на исправление уходит из очереди вместе с регистрацией (D-031).
+  await withdrawPending(tx, registration.id, now);
   await enqueue(
     tx,
     {
