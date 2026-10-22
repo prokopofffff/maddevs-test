@@ -9,10 +9,11 @@ import "./styles/app.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { createBrowserRouter, Navigate, RouterProvider } from "react-router";
+import { createBrowserRouter, RouterProvider } from "react-router";
 import { ApiError } from "./api.ts";
 import { AccountLayout } from "./components/AccountLayout.tsx";
 import { AuthPage } from "./pages/AuthPage.tsx";
+import { CatalogPage } from "./pages/CatalogPage.tsx";
 import { CheckinPage } from "./pages/CheckinPage.tsx";
 import { EventAdminPage } from "./pages/EventAdminPage.tsx";
 import { EventFormPage } from "./pages/EventFormPage.tsx";
@@ -34,7 +35,7 @@ const queryClient = new QueryClient({
 });
 
 const router = createBrowserRouter([
-  { path: "/", element: <Navigate to="/organizer" replace /> },
+  { path: "/", element: <CatalogPage /> },
   { path: "/login", element: <AuthPage mode="login" key="login" /> },
   { path: "/signup", element: <AuthPage mode="signup" key="signup" /> },
   { path: "/e/:eventId", element: <PublicEventPage /> },

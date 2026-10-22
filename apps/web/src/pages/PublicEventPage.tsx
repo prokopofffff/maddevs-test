@@ -5,7 +5,7 @@ import { useNavigate, useParams } from "react-router";
 import { api, ApiError, client } from "../api.ts";
 import { AgeBadge } from "../components/AgeBadge.tsx";
 import { ErrorBanner } from "../components/Banner.tsx";
-import { Brand } from "../components/Brand.tsx";
+import { PublicHeader } from "../components/PublicHeader.tsx";
 import { Icon } from "../components/Icon.tsx";
 import { PageSkeleton } from "../components/Skeleton.tsx";
 import { errorText } from "../errors.ts";
@@ -133,68 +133,70 @@ export function PublicEventPage() {
   if (event.error instanceof ApiError && event.error.status === 404) return <NotFoundPage />;
 
   return (
-    <div className="page page--split">
-      <Brand />
-      {event.isError ? (
-        <ErrorBanner title="Не удалось загрузить событие">{errorText(event.error)}</ErrorBanner>
-      ) : (
-        <>
-          <div className="page__main">
-            <header className="event-header">
-              <div className="event-header__badges">
-                <AgeBadge minAge={event.data.minAge} />
-              </div>
-              <h1 className="heading heading--page">{event.data.title}</h1>
-              <p className="event-header__time">
-                <Icon name="calendar" />
-                {formatEventTime(event.data.startsAt, event.data.timezone)}
-              </p>
-              <p className="text-muted">
-                {categoryLabel[event.data.category]} · {fullPlace(event.data)}
-              </p>
-              {event.data.description && <p style={{ whiteSpace: "pre-line" }}>{event.data.description}</p>}
-            </header>
-          </div>
-          <div className="page__side">
-            <div className="panel">
-              {event.data.started ? (
-                <div className="banner" role="status">
-                  <Icon name="info" />
-                  <div className="banner__body">
-                    <p className="banner__title">Событие началось — регистрация закрыта</p>
-                  </div>
+    <>
+      <PublicHeader />
+      <div className="page page--split">
+        {event.isError ? (
+          <ErrorBanner title="Не удалось загрузить событие">{errorText(event.error)}</ErrorBanner>
+        ) : (
+          <>
+            <div className="page__main">
+              <header className="event-header">
+                <div className="event-header__badges">
+                  <AgeBadge minAge={event.data.minAge} />
                 </div>
-              ) : (
-                <>
-                  {event.data.freeSeats > 0 ? (
-                    <p className="seats seats--available">
-                      <Icon name="check" />
-                      {seatsLeft(event.data.freeSeats)}
-                    </p>
-                  ) : (
-                    <p className="seats seats--waitlist">
-                      <Icon name="clock" />
-                      Мест нет — вы встанете в лист ожидания
-                    </p>
-                  )}
-                  <RegistrationForm
-                    initial={data}
-                    pending={request.isPending}
-                    error={request.error}
-                    onSubmit={(input) => request.mutate({ purpose: "register", ...input })}
-                  />
-                </>
-              )}
-              <LookupForm
-                initial={lookupEmail}
-                pending={lookup.isPending}
-                error={lookup.error}
-                onSubmit={(email) => lookup.mutate({ purpose: "lookup", email })}
-              />
+                <h1 className="heading heading--page">{event.data.title}</h1>
+                <p className="event-header__time">
+                  <Icon name="calendar" />
+                  {formatEventTime(event.data.startsAt, event.data.timezone)}
+                </p>
+                <p className="text-muted">
+                  {categoryLabel[event.data.category]} · {fullPlace(event.data)}
+                </p>
+                {event.data.description && <p style={{ whiteSpace: "pre-line" }}>{event.data.description}</p>}
+              </header>
             </div>
-          </div>
-        </>
-      )}
-    </div>
+            <div className="page__side">
+              <div className="panel">
+                {event.data.started ? (
+                  <div className="banner" role="status">
+                    <Icon name="info" />
+                    <div className="banner__body">
+                      <p className="banner__title">Событие началось — регистрация закрыта</p>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {event.data.freeSeats > 0 ? (
+                      <p className="seats seats--available">
+                        <Icon name="check" />
+                        {seatsLeft(event.data.freeSeats)}
+                      </p>
+                    ) : (
+                      <p className="seats seats--waitlist">
+                        <Icon name="clock" />
+                        Мест нет — вы встанете в лист ожидания
+                      </p>
+                    )}
+                    <RegistrationForm
+                      initial={data}
+                      pending={request.isPending}
+                      error={request.error}
+                      onSubmit={(input) => request.mutate({ purpose: "register", ...input })}
+                    />
+                  </>
+                )}
+                <LookupForm
+                  initial={lookupEmail}
+                  pending={lookup.isPending}
+                  error={lookup.error}
+                  onSubmit={(email) => lookup.mutate({ purpose: "lookup", email })}
+                />
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </>
   );
 }

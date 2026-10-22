@@ -45,3 +45,51 @@ button.back-link { padding: 0; border: 0; background: none; font: inherit; font-
 .radio-group { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-6); }
 .radio-group__option { display: inline-flex; align-items: center; gap: var(--space-2); cursor: pointer; }
 .radio-group__option input { width: 18px; height: 18px; margin: 0; accent-color: var(--color-text); }
+
+/* Общая шапка публичных страниц (D-056): в шаблоне `.app-header__user` — серый текст кабинета, а тут в нём кнопки. */
+.app-header .brand { align-self: center; }
+.app-header + .page { padding-top: var(--space-6); }
+
+/* Каталог на `/` (D-056, D-062): чипы фильтров, сетка карточек. В шаблоне чипов и карточек события нет. */
+.catalog { gap: var(--space-5); }
+.catalog-filters { display: flex; flex-direction: column; gap: var(--space-3); }
+.catalog-search { max-width: none; flex: none; }
+.catalog-filters__row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-2) var(--space-3); }
+.catalog-filters__select { flex: 1 1 150px; max-width: 220px; }
+
+/* Чип — вид переключателя `.segmented`: нажатый чёрный с акцентным текстом. Высота 44 px — цель нажатия. */
+.chip {
+  min-height: var(--control-height-sm);
+  padding: 0 var(--space-4);
+  border: var(--border-width) solid var(--color-text);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+.chip:hover { background: var(--color-surface-muted); }
+.chip[aria-pressed="true"] { background: var(--color-text); color: var(--color-accent); font-weight: var(--font-weight-bold); }
+.chip:disabled { border-color: var(--color-border); background: var(--color-disabled-bg); color: var(--color-disabled-ink); cursor: not-allowed; }
+
+.catalog__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--space-4); }
+.catalog__grid[aria-busy="true"] { opacity: 0.6; }
+.catalog__more { align-self: center; }
+.skeleton--card { height: 160px; border-radius: var(--radius-lg); }
+
+.event-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  border: var(--border-width) solid var(--color-text);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  color: var(--color-text);
+  text-decoration: none;
+}
+.event-card:hover { background: var(--color-hover); }
+.event-card:hover .event-card__title { background: var(--color-accent); }
+.event-card__title { font-size: var(--font-size-xl); font-weight: var(--font-weight-black); line-height: 1.15; letter-spacing: -0.03em; }
+.event-card__time { color: var(--color-text-muted); font-size: var(--font-size-sm); }
+.event-card__badges { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: auto; padding-top: var(--space-2); }
