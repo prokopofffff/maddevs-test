@@ -1,0 +1,1 @@
+CREATE INDEX "registrations_email_created_idx" ON "registrations" USING btree ("email","created_at" DESC NULLS LAST);

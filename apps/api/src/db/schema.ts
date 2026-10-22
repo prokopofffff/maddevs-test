@@ -88,6 +88,8 @@ export const registrations = pgTable(
   },
   (t) => [
     index("registrations_event_status_idx").on(t.eventId, t.status),
+    // «Мои регистрации» читают все строки email, свежие первыми (D-057).
+    index("registrations_email_created_idx").on(t.email, t.createdAt.desc()),
     uniqueIndex("registrations_event_email_active_key")
       .on(t.eventId, t.email)
       .where(sql`${t.status} <> 'cancelled'`),

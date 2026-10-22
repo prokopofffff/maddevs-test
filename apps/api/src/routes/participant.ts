@@ -9,6 +9,7 @@ import {
   writeParticipantCookie,
 } from "../auth/participant-session.ts";
 import { confirmLoginCode, issueLoginCode, lastRegistrationData } from "../domain/participant-login.ts";
+import { participantRegistrations } from "../domain/registrations.ts";
 import { apiError, type Env } from "../http.ts";
 import { emailSchema } from "../schemas/auth.ts";
 import { confirmCodeSchema } from "../schemas/participant.ts";
@@ -84,6 +85,10 @@ export const participantRoutes = new Hono<Env>()
   .get("/me", requireParticipant, async (c) => {
     const email = c.var.participantEmail;
     return c.json({ email, lastData: await lastRegistrationData(c.var.db, email) }, 200);
+  })
+  .get("/registrations", requireParticipant, async (c) => {
+    const registrations = await participantRegistrations(c.var.db, c.var.participantEmail, c.var.clock.now());
+    return c.json({ registrations }, 200);
   })
   .post("/logout", async (c) => {
     const id = readParticipantCookie(c);

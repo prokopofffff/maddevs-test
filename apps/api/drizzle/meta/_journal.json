@@ -43,6 +43,13 @@
       "when": 1792682651763,
       "tag": "0005_participant_login",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792683048856,
+      "tag": "0006_registrations_email_idx",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,5 @@
 import { and, asc, eq, ne, sql } from "drizzle-orm";
-import { emailVerifications, registrations } from "../db/schema.ts";
+import { emailVerifications, events, registrations } from "../db/schema.ts";
 import type { Queryable, Tx } from "../db/tx.ts";
 import { enqueue } from "../mail/outbox.ts";
 import { cancelledMail } from "../mail/templates/cancelled.ts";
@@ -75,6 +75,58 @@ export async function eventRegistrations(db: Queryable, eventId: string) {
     );
   let position = 0;
   return rows.map((row) => ({ row, waitlistPosition: row.status === "waitlisted" ? ++position : null }));
+}
+
+export interface ParticipantRegistration {
+  token: string;
+  status: RegistrationRow["status"];
+  waitlistPosition?: number;
+  ticketCode: string | null;
+  checkedInAt: string | null;
+  cancelledAt: string | null;
+  event: {
+    id: string;
+    title: string;
+    startsAt: string;
+    timezone: string;
+    format: EventRow["format"];
+    city: string | null;
+    started: boolean;
+  };
+}
+
+/**
+ * «Мои регистрации» (D-057): все строки email, включая отменённые — повторная регистрация после отказа
+ * даёт вторую строку, видны обе (D-007). Порядок — по началу события, внутри события по созданию;
+ * деление на «Текущие» и «Прошедшие» — на клиенте. Поля — как у `GET /registrations/:token`:
+ * билет только у `confirmed` (D-022), номер в листе ожидания считается на сейчас (D-012).
+ */
+export async function participantRegistrations(db: Queryable, email: string, now: Date): Promise<ParticipantRegistration[]> {
+  const rows = await db
+    .select({ registration: registrations, event: events })
+    .from(registrations)
+    .innerJoin(events, eq(events.id, registrations.eventId))
+    .where(eq(registrations.email, email))
+    .orderBy(asc(events.startsAt), asc(registrations.createdAt), asc(registrations.id));
+  return Promise.all(
+    rows.map(async ({ registration: r, event }) => ({
+      token: r.token,
+      status: r.status,
+      ...(r.status === "waitlisted" ? { waitlistPosition: await waitlistPosition(db, r) } : {}),
+      ticketCode: r.status === "confirmed" ? r.ticketCode : null,
+      checkedInAt: r.checkedInAt?.toISOString() ?? null,
+      cancelledAt: r.cancelledAt?.toISOString() ?? null,
+      event: {
+        id: event.id,
+        title: event.title,
+        startsAt: event.startsAt.toISOString(),
+        timezone: event.timezone,
+        format: event.format,
+        city: event.city,
+        started: started(event, now),
+      },
+    })),
+  );
 }
 
 /** Список участников для организатора и поддержки (только чтение): возраст и предупреждение — на день события (D-017). */
