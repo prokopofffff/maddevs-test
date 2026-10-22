@@ -8,6 +8,7 @@ import {
   receiveCode,
   requestCode,
   requestLoginCode,
+  signInParticipant,
 } from "../support/participant.ts";
 import { testApp, type Client } from "../support/test-app.ts";
 
@@ -110,6 +111,24 @@ describe("rate limit (D-006)", () => {
     expect(res.headers.get("ratelimit-limit")).toBe("20");
     // `/participant/me` в корзину не входит, корзина входа организатора своя.
     expect((await browser.get("/api/participant/me")).status).toBe(401);
+    expect((await login(browser)).status).toBe(401);
+  });
+
+  it("регистрация без кода в корзине участника: вход участника тоже в ней, 21-й запрос → 429", async () => {
+    const t = testApp({ rateLimit: { rateLimits: defaults } });
+    const { eventId } = await createEvent(t, { limit: 5 });
+    // Вход участника — два действия корзины: запрос кода и ввод кода.
+    const browser = await signInParticipant(t, "anna@example.com");
+    const { email: _email, ...data } = participant();
+    const registerSignedIn = () => browser.post(`/api/events/${eventId}/registrations`, data);
+
+    expect(await repeat(18, registerSignedIn)).toEqual(Array(18).fill(200));
+    const res = await registerSignedIn();
+
+    expect(res.status).toBe(429);
+    expect(res.body).toEqual({ error: "rate_limited" });
+    expect(res.headers.get("ratelimit-limit")).toBe("20");
+    // Корзина входа организатора своя.
     expect((await login(browser)).status).toBe(401);
   });
 

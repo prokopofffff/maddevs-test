@@ -7,7 +7,7 @@ import { ErrorBanner } from "../../components/Banner.tsx";
 import { Icon } from "../../components/Icon.tsx";
 import { PublicHeader } from "../../components/PublicHeader.tsx";
 import { errorText } from "../../errors.ts";
-import { participantKey, safeNext } from "../../participant.ts";
+import { participantKey, participantRegistrationsKey, safeNext } from "../../participant.ts";
 import { CodeStep } from "../event/CodeStep.tsx";
 
 type Step = { name: "email" } | { name: "code"; verificationId: number; resendAt: number };
@@ -59,9 +59,16 @@ export function ParticipantLogin() {
         }),
       ),
     onSuccess: async ({ email: confirmed }) => {
-      // Ответ `/me` ещё не получен: кладём то, что знаем, — `lastData` подтянет инвалидация.
-      queryClient.setQueryData(participantKey, { email: confirmed, lastData: null });
-      void queryClient.invalidateQueries({ queryKey: participantKey });
+      // Форма регистрации читает `lastData` один раз, при монтировании: переходим по `?next=/e/:id` только
+      // с настоящим ответом `/participant/me`, иначе форма смонтируется пустой (дизайн §8.4).
+      try {
+        queryClient.setQueryData(participantKey, await api(client.api.participant.me.$get()));
+      } catch {
+        // Не вышло — входим без предзаполнения: профиль подтянет обычный запрос.
+        queryClient.setQueryData(participantKey, { email: confirmed, lastData: null });
+      }
+      // Регистрации прежнего пользователя (если был) протухли; сам `participantKey` свежий.
+      void queryClient.invalidateQueries({ queryKey: participantRegistrationsKey });
       void navigate(safeNext(params.get("next")), { replace: true });
     },
   });

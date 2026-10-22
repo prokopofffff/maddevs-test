@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
 import { codeFromMail } from "../support/mailpit.ts";
-import { createEvent, uniqueEmail } from "../support/setup.ts";
+import { createEvent, rewind, uniqueEmail } from "../support/setup.ts";
 
-test("каталог → вход участника по коду → регистрация без кода → «Мои регистрации»", async ({ page, request }) => {
+test("каталог → вход участника по коду → регистрация без кода → «Мои регистрации»", async ({ page, request, browser }) => {
   const email = uniqueEmail("anna");
   const title = `Каталог ${uniqueEmail("t")}`;
   const city = `Тестоград ${Date.now()}`;
@@ -21,6 +21,8 @@ test("каталог → вход участника по коду → реги�
   await expect(page).toHaveURL(`/e/${eventId}`);
   await page.getByRole("link", { name: "Войти, чтобы регистрироваться без кода" }).click();
   await expect(page).toHaveURL(`/me?next=/e/${eventId}`);
+  // Поле «Email» есть и у формы события: ждём страницу входа, иначе `fill` попадёт в уходящую форму.
+  await expect(page.getByRole("heading", { name: "Мои регистрации" })).toBeVisible();
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByRole("button", { name: "Получить код" }).click();
   await page.getByLabel("Код из письма").fill(await codeFromMail(email, 1, "Код для входа"));
@@ -44,4 +46,23 @@ test("каталог → вход участника по коду → реги�
   const row = page.getByRole("listitem").filter({ hasText: title });
   await expect(row).toBeVisible();
   await expect(row.getByText(/^Место ваше/)).toBeVisible();
+
+  // Вернувшийся участник в чистом браузере входит по ссылке другого события: форма уже предзаполнена из `lastData`.
+  const other = await createEvent(request, { title: `${title} 2`, city, category: "lecture", minAge: 0 });
+  await rewind({ email }); // новый код входа тому же адресу раньше минуты не выдаётся
+  const fresh = await browser.newContext();
+  const again = await fresh.newPage();
+  await again.goto(`/e/${other}`);
+  await again.getByRole("link", { name: "Войти, чтобы регистрироваться без кода" }).click();
+  await expect(again).toHaveURL(`/me?next=/e/${other}`);
+  await expect(again.getByRole("heading", { name: "Мои регистрации" })).toBeVisible();
+  await again.getByLabel("Email", { exact: true }).fill(email);
+  await again.getByRole("button", { name: "Получить код" }).click();
+  await again.getByLabel("Код из письма").fill(await codeFromMail(email, 2, "Код для входа"));
+  await again.getByRole("button", { name: "Подтвердить" }).click();
+  await expect(again).toHaveURL(`/e/${other}`);
+  await expect(again.getByLabel("Имя")).toHaveValue("Анна");
+  await expect(again.getByLabel("Фамилия")).toHaveValue("Иванова");
+  await expect(again.getByLabel("Дата рождения")).toHaveValue("1994-03-14");
+  await fresh.close();
 });
