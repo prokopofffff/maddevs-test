@@ -1,15 +1,15 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Navigate, Outlet, useLocation, useNavigate } from "react-router";
 import { api, client } from "../api.ts";
-import { meKey, useMe } from "../session.ts";
+import { homeFor, meKey, useMe } from "../session.ts";
 import { Brand } from "./Brand.tsx";
 import { PageSkeleton } from "./Skeleton.tsx";
 
 /**
- * Кабинет организатора: без сессии — на вход, с ролью поддержки — к себе.
+ * Кабинет организатора или поддержки: без сессии — на вход, с другой ролью — в свой кабинет (D-030).
  * `bare` — без шапки: экран чекина на входе занимает всё окно (S9).
  */
-export function OrganizerLayout({ bare = false }: { bare?: boolean }) {
+export function AccountLayout({ role, bare = false }: { role: "organizer" | "support"; bare?: boolean }) {
   const me = useMe();
   const location = useLocation();
   const navigate = useNavigate();
@@ -25,13 +25,13 @@ export function OrganizerLayout({ bare = false }: { bare?: boolean }) {
 
   if (me.isPending) return <PageSkeleton label="Загрузка кабинета" />;
   if (me.isError || !me.data) return <Navigate to={`/login?next=${encodeURIComponent(location.pathname)}`} replace />;
-  if (me.data.role !== "organizer") return <Navigate to="/support" replace />;
+  if (me.data.role !== role) return <Navigate to={homeFor(me.data.role)} replace />;
   if (bare) return <Outlet />;
 
   return (
     <>
       <header className="app-header">
-        <Brand to="/organizer" />
+        <Brand to={homeFor(role)} />
         <div className="app-header__user">
           <span>{me.data.email}</span>
           <button

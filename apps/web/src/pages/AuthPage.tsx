@@ -32,7 +32,8 @@ export function AuthPage({ mode }: { mode: Mode }) {
     onSuccess: ({ user }) => {
       queryClient.setQueryData(meKey, user);
       const next = params.get("next");
-      navigate(user.role === "organizer" && next?.startsWith("/organizer") ? next : homeFor(user.role));
+      // `next` — только в свой кабинет: поддержку не ведём на организаторскую страницу и наоборот.
+      navigate(next?.startsWith(homeFor(user.role)) ? next : homeFor(user.role));
     },
   });
 
