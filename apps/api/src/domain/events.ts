@@ -70,7 +70,9 @@ export async function updateEvent(
   event: EventRow,
   patch: EventPatch,
   ctx: MailContext,
-): Promise<EventUpdate | { error: "event_started" | "starts_in_past" }> {
+): Promise<
+  EventUpdate | { error: "event_started" | "starts_in_past" } | { error: "place_required"; fields: ("city" | "address")[] }
+> {
   const { now, publicUrl } = ctx;
   const timezone = patch.timezone ?? event.timezone;
   // Без `startsLocal` момент сохраняется; смена только пояса — не перенос (D-016).
@@ -81,6 +83,14 @@ export async function updateEvent(
   if ((moved || resized) && started(event, now)) return { error: "event_started" };
   if (moved && startsAt <= now) return { error: "starts_in_past" };
 
+  // Пара «формат — место» проверяется по слитым значениям: правка может прислать только `format` (D-059).
+  const format = patch.format ?? event.format;
+  const city = format === "online" ? null : (patch.city ?? event.city);
+  const address = format === "online" ? null : (patch.address ?? event.address);
+  if (format === "offline" && (!city || !address)) {
+    return { error: "place_required", fields: [...(city ? [] : (["city"] as const)), ...(address ? [] : (["address"] as const))] };
+  }
+
   const [updated] = await tx
     .update(events)
     .set({
@@ -89,7 +99,11 @@ export async function updateEvent(
       startsAt,
       timezone,
       seatLimit: patch.limit ?? event.seatLimit,
-      minAge: patch.minAge === undefined ? event.minAge : patch.minAge,
+      format,
+      city,
+      address,
+      category: patch.category ?? event.category,
+      minAge: patch.minAge ?? event.minAge,
       // Номер переноса различает письма о переносе и «раунды» напоминаний (D-016, D-018).
       ...(moved && { rescheduleCount: event.rescheduleCount + 1, rescheduledAt: now }),
       updatedAt: now,

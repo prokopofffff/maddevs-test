@@ -24,6 +24,10 @@ const organizerEvent = (e: EventRow, now: Date) => ({
   startsLocal: instantToLocal(e.startsAt, e.timezone),
   timezone: e.timezone,
   limit: e.seatLimit,
+  format: e.format,
+  city: e.city,
+  address: e.address,
+  category: e.category,
   minAge: e.minAge,
   started: started(e, now),
 });
@@ -76,7 +80,12 @@ export const organizerRoutes = new Hono<Env>()
         startsAt,
         timezone: input.timezone,
         seatLimit: input.limit,
-        minAge: input.minAge ?? null,
+        format: input.format,
+        // У онлайн-события места нет: даже присланные город и адрес не сохраняются (D-059).
+        city: input.format === "offline" ? input.city : null,
+        address: input.format === "offline" ? input.address : null,
+        category: input.category,
+        minAge: input.minAge ?? 0,
         createdAt: now,
         updatedAt: now,
       })
@@ -118,7 +127,13 @@ export const organizerRoutes = new Hono<Env>()
       return updateEvent(tx, locked, patch, { now, publicUrl: config.publicUrl });
     });
     if (!result) return apiError(c, 404, "not_found");
-    if ("error" in result) return apiError(c, result.error === "event_started" ? 409 : 400, result.error);
+    if ("error" in result) {
+      // Пара «формат — место» сломалась только после слияния с событием: ответ той же формы, что у схемы (D-059).
+      if (result.error === "place_required") {
+        return apiError(c, 400, "validation_failed", { issues: result.fields.map((path) => ({ path, message: "required" })) });
+      }
+      return apiError(c, result.error === "event_started" ? 409 : 400, result.error);
+    }
     const { event, rescheduled, belowMinAgeCount } = result;
     // Письма о переносе и повышении закоммичены — отправка стартует сразу, не дожидаясь тика (D-014).
     outbox.wake();

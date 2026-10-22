@@ -23,7 +23,7 @@ export async function issueVerification(db: Db, event: EventRow, input: Verifica
   if (input.purpose === "register") {
     if (started(event, now)) return { error: "registration_closed" as const };
     if (isFutureDate(input.birthDate, now)) return { error: "birth_date_in_future" as const };
-    if (belowMinAge(input.birthDate, event)) return { error: "below_min_age" as const, minAge: event.minAge! };
+    if (belowMinAge(input.birthDate, event)) return { error: "below_min_age" as const, minAge: event.minAge };
   }
   const form = input.purpose === "register" ? input : undefined;
 

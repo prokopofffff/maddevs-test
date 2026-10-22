@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { bigint, check, date, index, integer, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { EVENT_CATEGORIES, EVENT_FORMATS } from "../schemas/event.ts";
 
 const tz = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
 
@@ -32,7 +33,12 @@ export const events = pgTable(
     startsAt: tz("starts_at").notNull(),
     timezone: text("timezone").notNull(),
     seatLimit: integer("seat_limit").notNull(),
-    minAge: integer("min_age"),
+    format: text("format", { enum: EVENT_FORMATS }).notNull(),
+    city: text("city"),
+    address: text("address"),
+    category: text("category", { enum: EVENT_CATEGORIES }).notNull(),
+    /** Шкала 0/6/12/16/18; 0 — без ограничения (D-060). */
+    minAge: integer("min_age").notNull().default(0),
     rescheduleCount: integer("reschedule_count").notNull().default(0),
     rescheduledAt: tz("rescheduled_at"),
     createdAt: tz("created_at").notNull(),
@@ -40,8 +46,15 @@ export const events = pgTable(
   },
   (t) => [
     index("events_organizer_starts_idx").on(t.organizerId, t.startsAt),
+    // Лента каталога идёт по `(starts_at, id)`, фильтр и список городов — по `lower(city)` (D-061).
+    index("events_starts_idx").on(t.startsAt, t.id),
+    index("events_city_idx").on(sql`lower(${t.city})`),
     check("events_seat_limit_check", sql`${t.seatLimit} >= 1`),
-    check("events_min_age_check", sql`${t.minAge} between 1 and 120`),
+    check("events_min_age_check", sql`${t.minAge} in (0, 6, 12, 16, 18)`),
+    check(
+      "events_place_check",
+      sql`(${t.format} = 'offline' and ${t.city} is not null and ${t.address} is not null) or (${t.format} = 'online' and ${t.city} is null and ${t.address} is null)`,
+    ),
   ],
 );
 

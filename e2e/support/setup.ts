@@ -18,7 +18,7 @@ export async function createEvent(request: APIRequestContext, overrides: Record<
   const startsLocal = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 16);
   const body = await json<{ event: { id: string } }>(
     await request.post("/api/organizer/events", {
-      data: { title: "Митап e2e", description: "", startsLocal, timezone: "Asia/Novosibirsk", limit: 10, ...overrides },
+      data: { title: "Митап e2e", description: "", startsLocal, timezone: "Asia/Novosibirsk", limit: 10, format: "offline", city: "Новосибирск", address: "Красный проспект, 1", category: "meetup", ...overrides },
     }),
     201,
   );

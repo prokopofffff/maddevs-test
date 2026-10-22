@@ -10,9 +10,9 @@ export function ageOnEventDay(birthDate: string, event: Pick<EventRow, "startsAt
   return eventDay.slice(5) < birthDate.slice(5) ? years - 1 : years;
 }
 
-/** «Младше минимального» — минимальный возраст задан и возраст на день события меньше. */
+/** «Младше минимального» — минимальный возраст больше нуля (0 — без ограничения) и возраст на день события меньше (D-060). */
 export const belowMinAge = (birthDate: string, event: Pick<EventRow, "startsAt" | "timezone" | "minAge">) =>
-  event.minAge !== null && ageOnEventDay(birthDate, event) < event.minAge;
+  event.minAge > 0 && ageOnEventDay(birthDate, event) < event.minAge;
 
 /** Сегодняшняя дата в UTC: дата рождения позже неё — точно в будущем. */
 export const isFutureDate = (date: string, now: Date) => date > now.toISOString().slice(0, 10);

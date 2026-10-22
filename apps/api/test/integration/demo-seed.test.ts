@@ -44,8 +44,8 @@ describe("Демо-сид (D-010)", () => {
     const past = list.find((e) => e.started);
     expect(past?.counts.checkedIn).toBeGreaterThan(0);
 
-    // С минимальным возрастом.
-    expect(details.filter((d) => d.event.minAge !== null)).toHaveLength(1);
+    // С минимальным возрастом: квиз 18+ и митап 12+ (D-060).
+    expect(details.filter((d) => d.event.minAge > 0).map((d) => d.event.minAge).sort()).toEqual([12, 18]);
   });
 
   it("после сида проход циклов присылает напоминания подтверждённым заранее, и никаких других писем", async () => {

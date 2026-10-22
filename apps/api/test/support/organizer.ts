@@ -15,6 +15,10 @@ export const eventInput = (overrides: Record<string, unknown> = {}) => ({
   startsLocal: "2026-11-20T19:00",
   timezone: "Asia/Novosibirsk",
   limit: 50,
+  format: "offline",
+  city: "Новосибирск",
+  address: "Красный проспект, 1",
+  category: "meetup",
   ...overrides,
 });
 
