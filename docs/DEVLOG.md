@@ -992,3 +992,10 @@
 - Не проверено: состояния «Не отмечены на входе» и «Место не освободилось» (в сиде нет таких регистраций; только код по таблице); компонентных тестов нет (D-041). Выход и сразу вход тем же email в течение минуты оставляет на форме email с ошибкой «Код уже отправлен…» (см. D-063).
 - Решения: D-063
 - Дальше: задача 9 — `/e/:id` под сессией участника (`useParticipant`, `safeNext`).
+
+## 2026-10-22 22:41 +0700 — Задача 8: регистрация без кода (API)
+- Сделано: `POST /api/events/:id/registrations` под `requireParticipant` и `participantDataSchema`; email берётся только из сессии, `email` в теле схемой отбрасывается. `allocate(tx, event, applicant, ctx)` теперь принимает `Applicant {email, firstName, lastName, birthDate}` вместо строки кода, `confirmVerification` передаёт поля кода с `!`; тип `AllocateResult` экспортирован. `registerSignedIn(db, eventId, email, data, ctx)` в `domain/registrations.ts`: `withTx` → `lockEvent` → `registration_closed` → будущая дата → `below_min_age` → тот же `allocate`, то есть то же правило мест и та же блокировка события, что у регистрации по коду (D-011). Маршрут отвечает как `confirm`: `{result, token, status, waitlistPosition?}`, `outbox.wake()` только для новой регистрации. `GET /events/:id` под `optionalParticipant` добавляет `myRegistration {token, status} | null` (у гостя поля нет). В `app.ts` корзина `public` на `/events/:id/registrations`. SPEC §4 уже описывал контракт, правок не потребовалось.
+- Проверка: красный прогон `pnpm --filter @app/api test signed-in-registration` → 5 из 5 упали (404 на несуществующем маршруте, `myRegistration` undefined). После реализации → 5 из 5, три прогона подряд, гонка стабильна. Полный `TEST_DATABASE_URL=postgres://app:app@localhost:5455/postgres pnpm --filter @app/api test` → 26 файлов, 182 теста (было 25 / 177), R1–R3 зелёные. `pnpm typecheck` и `pnpm lint` без ошибок.
+- Решения: D-058 (новых D не потребовалось)
+- Не проверено: лимит 20/мин на новом маршруте отдельным тестом не покрыт (подключён той же корзиной `public`, что остальные ★-маршруты); фронт не менялся.
+- Дальше: задача 9 — `/e/:id` под сессией участника.

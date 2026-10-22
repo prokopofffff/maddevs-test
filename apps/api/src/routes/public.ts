@@ -5,13 +5,14 @@ import { withTx, type Queryable } from "../db/tx.ts";
 import { catalogCities, listCatalog } from "../domain/catalog.ts";
 import { pendingCorrection, pendingCorrectionView, submitCorrection } from "../domain/corrections.ts";
 import { countsFor, freeSeats, lockEvent, started } from "../domain/events.ts";
-import { cancel, DomainError, waitlistPosition, type RegistrationRow } from "../domain/registrations.ts";
+import { activeRegistration, cancel, DomainError, registerSignedIn, waitlistPosition, type RegistrationRow } from "../domain/registrations.ts";
 import { confirmVerification, issueVerification } from "../domain/verifications.ts";
 import { apiError, type Env } from "../http.ts";
 import { catalogQuerySchema } from "../schemas/catalog.ts";
 import { confirmCodeSchema, participantDataSchema, verificationRequestSchema } from "../schemas/participant.ts";
 import { validate } from "../validation.ts";
 import { isUuid } from "./params.ts";
+import { optionalParticipant, requireParticipant } from "./participant.ts";
 
 const TOKEN = /^[A-Za-z0-9_-]{43}$/;
 const ID = /^[1-9]\d{0,15}$/;
@@ -35,13 +36,16 @@ export const publicRoutes = new Hono<Env>()
     const { db, clock } = c.var;
     return c.json({ cities: await catalogCities(db, clock.now()) }, 200);
   })
-  .get("/events/:id", async (c) => {
+  .get("/events/:id", optionalParticipant, async (c) => {
     const { db, clock } = c.var;
     const id = c.req.param("id");
     const [event] = isUuid(id) ? await db.select().from(events).where(eq(events.id, id)) : [];
     if (!event) return apiError(c, 404, "not_found");
     const now = clock.now();
     const counts = (await countsFor(db, [event])).get(event.id)!;
+    // Только под сессией участника: у гостя поля нет, у вошедшего без регистрации — `null` (D-058).
+    const email = c.var.participantEmail;
+    const mine = email ? await activeRegistration(db, event.id, email) : undefined;
     return c.json(
       {
         id: event.id,
@@ -56,6 +60,7 @@ export const publicRoutes = new Hono<Env>()
         minAge: event.minAge,
         freeSeats: freeSeats(event, counts, now),
         started: started(event, now),
+        ...(email ? { myRegistration: mine ? { token: mine.token, status: mine.status } : null } : {}),
       },
       200,
     );
@@ -93,6 +98,39 @@ export const publicRoutes = new Hono<Env>()
       },
       201,
     );
+  })
+  // Регистрация без кода: email из сессии участника, дальше те же проверки и тот же `allocate` (D-058).
+  .post("/events/:id/registrations", requireParticipant, validate("json", participantDataSchema), async (c) => {
+    const { db, clock, config, outbox } = c.var;
+    const id = c.req.param("id");
+    if (!isUuid(id)) return apiError(c, 404, "not_found");
+
+    let registered;
+    try {
+      registered = await registerSignedIn(db, id, c.var.participantEmail, c.req.valid("json"), {
+        now: clock.now(),
+        publicUrl: config.publicUrl,
+      });
+    } catch (error) {
+      if (error instanceof DomainError) return apiError(c, 409, error.code);
+      throw error;
+    }
+    if ("error" in registered) {
+      switch (registered.error) {
+        case "not_found":
+          return apiError(c, 404, registered.error);
+        case "birth_date_in_future":
+          return apiError(c, 400, "validation_failed", { issues: [{ path: "birthDate", message: "in_future" }] });
+        case "below_min_age":
+          return apiError(c, 422, registered.error, { minAge: registered.minAge });
+      }
+    }
+    // Как у `confirm`: письмо о месте или листе ожидания закоммичено, повтор `existing` писем не ставит (D-014, D-007).
+    if (registered.result !== "existing") outbox.wake();
+    const { registration } = registered;
+    const position: { waitlistPosition?: number } =
+      registered.result === "waitlisted" ? { waitlistPosition: registered.waitlistPosition } : await positionOf(db, registration);
+    return c.json({ result: registered.result, token: registration.token, status: registration.status, ...position }, 200);
   })
   .post("/verifications/:id/confirm", validate("json", confirmCodeSchema), async (c) => {
     const { db, clock, config, outbox } = c.var;

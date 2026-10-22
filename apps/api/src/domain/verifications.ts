@@ -144,6 +144,8 @@ export async function confirmVerification(db: Db, id: number, code: string, ctx:
     const event = await lockEvent(tx, eventId);
     // Событие удалено вместе с кодами каскадом: до сюда не дойдём, но тип требует проверки.
     if (!event) return { error: "not_found" as const };
-    return allocate(tx, event, verification, ctx);
+    const { email, firstName, lastName, birthDate } = verification;
+    // У `register` форма заполнена всегда: код выдаётся только вместе с ней (`issueVerification`).
+    return allocate(tx, event, { email, firstName: firstName!, lastName: lastName!, birthDate: birthDate! }, ctx);
   });
 }
