@@ -223,7 +223,7 @@ RETURNING …
 - `404 not_found` — нет объекта, чужое событие или маршрут не для этой роли (D-005, D-030);
 - `429 rate_limited` + `Retry-After` (D-006).
 
-**Корзины rate limit** (D-006): `auth` — 10/мин на signup и login; `public` — 20/мин на действия участника (помечены ★); `global` — 300/мин на всё. Значения из env.
+**Корзины rate limit** (D-006, D-053): `auth` — 10/мин на signup и login; `public` — 20/мин на действия участника (помечены ★); `global` — 300/мин на все запросы под `/api`, статика фронта не считается. Значения из env. Ключ — IP: адрес сокета, а при `TRUST_PROXY=1` — последний адрес `X-Forwarded-For`, его дописал прокси. Окно — фиксированная минута от первого запроса. Ответы несут `RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset`; `429` ещё и `Retry-After` в секундах — из него интерфейс берёт N в «Слишком много запросов, попробуйте через N секунд».
 
 ### Вход (D-005)
 
@@ -314,7 +314,7 @@ Cookie `sid`: httpOnly, `SameSite=Lax`, `Path=/`, `Max-Age` 30 дней, `Secure
 | `promoted` | повышение | участник | `promoted:<registration_id>` | «Освободилось место», время, код билета, личная ссылка |
 | `cancelled` | отказ | участник | `cancelled:<registration_id>` | подтверждение отказа |
 | `reminder` | проход напоминаний | подтверждённые | `reminder:<registration_id>:<reschedule_count>` | «До начала меньше суток», время, код билета, личная ссылка (D-018); не «завтра»: после простоя письмо может уйти за несколько часов до начала |
-| `rescheduled` | перенос | все неотменённые | `rescheduled:<registration_id>:<reschedule_count>` | старое и новое время, статус: билет или номер в листе ожидания (D-016) |
+| `rescheduled` | перенос | все неотменённые | `rescheduled:<registration_id>:<reschedule_count>` | старое и новое время, каждое в своём поясе (пояс мог смениться вместе с переносом), статус: билет или номер в листе ожидания (D-016) |
 | `correction_accepted` | заявка принята | участник | `correction:<request_id>:accepted` | новые значения (D-031) |
 | `correction_rejected` | заявка отклонена | участник | `correction:<request_id>:rejected` | причина, если указана |
 
@@ -363,7 +363,7 @@ Cookie `sid`: httpOnly, `SameSite=Lax`, `Path=/`, `Max-Age` 30 дней, `Secure
 | `/r/:token` | `S4-MyReg` (s4a–s4e) | `GET /registrations/:token`, `POST …/cancel`, `POST …/corrections` | Подтверждена (билет), лист ожидания (номер), отменена, пришёл; диалог отказа. Форма «Исправить данные» и плашка «Заявка на рассмотрении» — без рамки, из `c-fields` и `c-banners` (D-031). После начала: «Событие началось» без кнопки отказа и формы, у листа ожидания «Событие началось, место не освободилось» (D-034). Подпись доски 04 «доступ по коду из письма» не переносим: доступ — по личной ссылке |
 | `/login`, `/signup` | `S5-Login` (s5a, s5b) | `POST /auth/login`, `POST /auth/signup` | После входа: `organizer` → `/organizer`, `support` → `/support` |
 | `/organizer` | `S6-Events` (s6a, s6b) | `GET /organizer/events` | Пустое состояние; у события — время и три счётчика |
-| `/organizer/events/new`, `/organizer/events/:id/edit` | `S7-EventForm` (s7a–s7c), `c-dialog` | `POST`/`PATCH /organizer/events…`, `DELETE /organizer/events/:id` | Пояс — нативный `<select>` по `Intl.supportedValuesOf('timeZone')`, по умолчанию пояс браузера (D-015, D-025). Диалог «N подтверждённых сверх лимита…» перед сохранением лимита ниже подтверждённых (D-032). После сохранения — предупреждение «N участников не проходят по возрасту» (D-017). После начала поля даты и лимита заблокированы (D-033). Кнопка «Удалить событие» с диалогом — только при `registrationCount = 0` (D-035); рамки нет |
+| `/organizer/events/new`, `/organizer/events/:id/edit` | `S7-EventForm` (s7a–s7c), `c-dialog` | `POST`/`PATCH /organizer/events…`, `DELETE /organizer/events/:id` | Пояс — нативный `<select>` по `Intl.supportedValuesOf('timeZone')`, по умолчанию пояс браузера (D-015, D-025). Диалог «N подтверждённых сверх лимита…» перед сохранением лимита ниже подтверждённых (D-032). После сохранения переноса или минимального возраста — предупреждение «N участников не проходят по возрасту» со ссылкой на список (D-017). Пока дата или время изменены и есть неотменённые регистрации — подсказка, что всем придёт письмо о переносе (D-016). После начала поля даты и лимита заблокированы (D-033). Кнопка «Удалить событие» с диалогом — только при `registrationCount = 0` (D-035); рамки нет |
 | `/organizer/events/:id` | `S8-EventAdmin` (s8a), `S8b-EventAdmin-States` (s8b, s8c) | `GET /organizer/events/:id`, `GET …/registrations`, `GET …/live`, `DELETE …/checkin/:registrationId` | Плашки «Подтверждено N из L» (сверх лимита — «N из L · K сверх лимита» предупреждающим цветом), «Лист ожидания N», «Пришло N из M» (D-021, D-032); ссылка для участников с копированием; список с фильтром по статусу; «Снять отметку» у отмеченных (D-023); «Нет связи». На 768 px таблица прокручивается горизонтально |
 | `/organizer/events/:id/checkin` | `S9-Checkin` (s9a–s9h) | `GET …/tickets/:code`, `POST …/checkin`, `GET …/live` | Поле в фокусе → Enter → карточка → «Пропустить» (Enter) → «Отмечен» → фокус в поле; жёлтое «Младше N лет на день события»; красные «Уже прошёл в ЧЧ:ММ», «Билет отменён», «Билет не найден»; строка «Пришло N из M» (D-023) |
 | `/support` | рамки нет, из `c-table`, `c-badges`, `c-buttons`, `c-dialog` | `GET /support/corrections`, `POST …/accept`, `POST …/reject` | Очередь «было → стало», предупреждение «Будет младше N лет на день события», счётчик ожидающих; отклонение с необязательной причиной (D-031) |
@@ -481,7 +481,7 @@ ESLint `no-restricted-imports` в `apps/web`: из `apps/api` разрешены
 | `PUBLIC_URL` | `http://localhost:3000` | основа ссылок в письмах и «ссылки для участников» |
 | `SMTP_HOST`, `SMTP_PORT` | `localhost`, `1025` | Mailpit |
 | `MAIL_FROM` | `Регистрация <no-reply@localhost>` | |
-| `TRUST_PROXY` | `0` | `1` — брать IP из `X-Forwarded-For` (D-006) |
+| `TRUST_PROXY` | `0` | `1` — брать IP из `X-Forwarded-For`, последний адрес (D-006, D-053) |
 | `RATE_LIMIT_GLOBAL`, `RATE_LIMIT_AUTH`, `RATE_LIMIT_PUBLIC` | `300`, `10`, `20` | в минуту на IP |
 | `COOKIE_SECURE` | `0` | |
 
