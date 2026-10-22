@@ -12,6 +12,9 @@ export type AgeRating = (typeof AGE_RATINGS)[number];
 
 const timezones = new Set(["UTC", ...Intl.supportedValuesOf("timeZone")]);
 
+/** Пояс из IANA: им же проверяются `timezone` события и `tz` посетителя в каталоге (D-061). */
+export const isTimezone = (tz: string) => timezones.has(tz);
+
 /** Дата и время в поясе события, как их вводит организатор: `YYYY-MM-DDTHH:mm` (D-015). */
 export const localDateTimeSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
 
@@ -24,7 +27,7 @@ export const eventFieldsSchema = z.object({
   title: z.string().trim().min(1).max(200),
   description: z.string().trim().max(5000),
   startsLocal: localDateTimeSchema,
-  timezone: z.string().refine((tz) => timezones.has(tz), "unknown_timezone"),
+  timezone: z.string().refine(isTimezone, "unknown_timezone"),
   limit: z.number().int().min(1).max(100_000),
   format: z.enum(EVENT_FORMATS),
   // Пробелы внутри схлопываются: «Нижний   Новгород» и «Нижний Новгород» — один город для фильтра (D-059).

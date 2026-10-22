@@ -297,6 +297,7 @@ Cookie `sid`: httpOnly, `SameSite=Lax`, `Path=/`, `Max-Age` 30 дней, `Secure
 - Порядок: `upcoming`, `today` и `week` — по возрастанию `starts_at`, `past` — по убыванию; при равных моментах — по `id`.
 - Страница — 24 события, курсор — `(starts_at, id)`.
 - Ответ: `200 {events: [{id, title, startsAt, timezone, format, city, category, minAge, freeSeats, started}], nextCursor}`; `nextCursor` — `null` на последней странице. Адреса и описания в списке нет. `freeSeats` — как в `GET /events/:id` (D-026).
+- Ошибки: непарсящийся `cursor` и неизвестный `tz` (как и значение фильтра вне перечня) — `400 validation_failed` с `issues` по пути `cursor` или `tz`.
 
 `GET /events/cities` — `200 {cities: string[]}`: города офлайн-событий из `upcoming`, без учёта регистра; показывается написание самого раннего события, порядок по алфавиту.
 

@@ -2,11 +2,13 @@ import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { events, registrations } from "../db/schema.ts";
 import { withTx, type Queryable } from "../db/tx.ts";
+import { catalogCities, listCatalog } from "../domain/catalog.ts";
 import { pendingCorrection, pendingCorrectionView, submitCorrection } from "../domain/corrections.ts";
 import { countsFor, freeSeats, lockEvent, started } from "../domain/events.ts";
 import { cancel, DomainError, waitlistPosition, type RegistrationRow } from "../domain/registrations.ts";
 import { confirmVerification, issueVerification } from "../domain/verifications.ts";
 import { apiError, type Env } from "../http.ts";
+import { catalogQuerySchema } from "../schemas/catalog.ts";
 import { confirmCodeSchema, participantDataSchema, verificationRequestSchema } from "../schemas/participant.ts";
 import { validate } from "../validation.ts";
 import { isUuid } from "./params.ts";
@@ -20,6 +22,19 @@ const positionOf = async (db: Queryable, registration: RegistrationRow): Promise
 
 /** Маршруты участника: без входа, доступ по ссылке на событие и по токену личной ссылки (D-007). */
 export const publicRoutes = new Hono<Env>()
+  // Каталог (D-061). `/events/cities` объявлен раньше `/events/:id`, иначе «cities» читалось бы как id.
+  .get("/events", validate("query", catalogQuerySchema), async (c) => {
+    const { db, clock } = c.var;
+    const catalog = await listCatalog(db, c.req.valid("query"), clock.now());
+    if ("error" in catalog) {
+      return apiError(c, 400, "validation_failed", { issues: [{ path: "cursor", message: "invalid" }] });
+    }
+    return c.json(catalog, 200);
+  })
+  .get("/events/cities", async (c) => {
+    const { db, clock } = c.var;
+    return c.json({ cities: await catalogCities(db, clock.now()) }, 200);
+  })
   .get("/events/:id", async (c) => {
     const { db, clock } = c.var;
     const id = c.req.param("id");
