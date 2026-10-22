@@ -71,7 +71,14 @@ button.back-link { padding: 0; border: 0; background: none; font: inherit; font-
 .chip[aria-pressed="true"] { background: var(--color-text); color: var(--color-accent); font-weight: var(--font-weight-bold); }
 .chip:disabled { border-color: var(--color-border); background: var(--color-disabled-bg); color: var(--color-disabled-ink); cursor: not-allowed; }
 
-.catalog__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--space-4); }
+/* Колонки по ширине рамки, как у остальных экранов: 1 на телефоне, 2 на планшете, 3 на ноутбуке (дизайн §8.2). */
+.catalog__grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
+@container frame (min-width: 600px) {
+  .catalog__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container frame (min-width: 900px) {
+  .catalog__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
 .catalog__grid[aria-busy="true"] { opacity: 0.6; }
 .catalog__more { align-self: center; }
 .skeleton--card { height: 160px; border-radius: var(--radius-lg); }
