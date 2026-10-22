@@ -1,5 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState, type ReactNode } from "react";
 import { api, client } from "../../api.ts";
 import { ErrorBanner } from "../../components/Banner.tsx";
 import { PageSkeleton } from "../../components/Skeleton.tsx";
@@ -20,10 +20,32 @@ export const registrationsKey = (eventId: string) => ["organizer", "event", even
 
 /**
  * Список участников S8: все регистрации, включая отменённые, в порядке сервера (D-051); фильтр по статусу — на клиенте.
- * Время прихода — на часах пояса события.
+ * Время прихода — на часах пояса события. «Снять отметку» — у отмеченных (D-023): «Пришло» уменьшится
+ * на всех открытых экранах через live, билет снова пройдёт чекин.
  */
-export function ParticipantList({ eventId, timezone, minAge }: { eventId: string; timezone: string; minAge: number | null }) {
+export function ParticipantList({
+  eventId,
+  timezone,
+  minAge,
+  empty,
+}: {
+  eventId: string;
+  timezone: string;
+  minAge: number | null;
+  /** Что показать, пока регистраций нет совсем. */
+  empty: ReactNode;
+}) {
+  const queryClient = useQueryClient();
   const [filter, setFilter] = useState<Filter>("all");
+  const uncheck = useMutation({
+    mutationFn: (registrationId: number) =>
+      api(
+        client.api.organizer.events[":id"].checkin[":registrationId"].$delete({
+          param: { id: eventId, registrationId: String(registrationId) },
+        }),
+      ),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: registrationsKey(eventId) }),
+  });
   const list = useQuery({
     queryKey: registrationsKey(eventId),
     queryFn: async () =>
@@ -32,6 +54,7 @@ export function ParticipantList({ eventId, timezone, minAge }: { eventId: string
 
   if (list.isPending) return <PageSkeleton label="Загрузка участников" />;
   if (list.isError) return <ErrorBanner title="Не удалось загрузить участников">{errorText(list.error)}</ErrorBanner>;
+  if (list.data.length === 0) return empty;
 
   const shown = filter === "all" ? list.data : list.data.filter((r) => r.status === filter);
 
@@ -52,6 +75,7 @@ export function ParticipantList({ eventId, timezone, minAge }: { eventId: string
           ))}
         </div>
       </div>
+      {uncheck.isError && <ErrorBanner title="Не удалось снять отметку">{errorText(uncheck.error)}</ErrorBanner>}
       {shown.length === 0 ? (
         <div className="empty-state">
           <p className="empty-state__text">Никого с этим статусом</p>
@@ -87,7 +111,21 @@ export function ParticipantList({ eventId, timezone, minAge }: { eventId: string
                       position={r.waitlistPosition ?? undefined}
                     />
                   </td>
-                  <td className="table__cell--nowrap">{r.checkedInAt ? formatClock(r.checkedInAt, timezone) : "—"}</td>
+                  <td className="table__cell--nowrap">
+                    {r.checkedInAt ? formatClock(r.checkedInAt, timezone) : "—"}
+                    {/* Кнопка в ячейке времени, а не отдельной колонкой, как в S8: на 1280 px она уехала бы за край таблицы. */}
+                    {r.checkedInAt && (
+                      <button
+                        className="button button--quiet button--sm uncheck-button"
+                        type="button"
+                        aria-label={`Снять отметку: ${r.firstName} ${r.lastName}`}
+                        disabled={uncheck.isPending && uncheck.variables === r.id}
+                        onClick={() => uncheck.mutate(r.id)}
+                      >
+                        Снять отметку
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

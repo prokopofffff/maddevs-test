@@ -4,6 +4,7 @@ import type { Clock } from "./clock.ts";
 import type { Db } from "./db/client.ts";
 import type { SessionUser } from "./auth/session.ts";
 import type { AppConfig, OutboxWaker } from "./app.ts";
+import type { Live } from "./live.ts";
 
 export interface Env {
   Variables: {
@@ -11,6 +12,7 @@ export interface Env {
     clock: Clock;
     config: AppConfig;
     outbox: OutboxWaker;
+    live: Live;
     user: SessionUser;
   };
 }

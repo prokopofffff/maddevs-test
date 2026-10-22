@@ -8,6 +8,7 @@ import { systemClock } from "./clock.ts";
 import { createDb, runMigrations } from "./db/client.ts";
 import { readEnv } from "./env.ts";
 import { createJobs } from "./jobs.ts";
+import { createLive } from "./live.ts";
 import { createOutboxRunner } from "./mail/outbox.ts";
 import { smtpTransport } from "./mail/smtp.ts";
 
@@ -16,6 +17,9 @@ const db = createDb(env.databaseUrl);
 
 // Миграции — до `listen` (D-009).
 await runMigrations(db);
+// Слушатель live-счётчиков — до циклов и `serve` (SPEC §3, «Порядок старта»).
+const live = createLive(db);
+await live.start();
 
 const transport = smtpTransport({
   host: env.smtpHost,
@@ -28,7 +32,7 @@ const jobs = createJobs({ db, transport });
 const outbox = createOutboxRunner(() => jobs.dispatch(systemClock.now()));
 outbox.start();
 
-const app = new Hono().route("/", createApp({ db, clock: systemClock, config: env, outbox }));
+const app = new Hono().route("/", createApp({ db, clock: systemClock, config: env, live, outbox }));
 
 // Один процесс отдаёт и API, и собранный фронт; остальные пути — SPA-фоллбэк на index.html (D-024).
 const webDist = fileURLToPath(new URL("../../web/dist", import.meta.url));
@@ -44,11 +48,18 @@ const server = serve({ fetch: app.fetch, port: env.port }, ({ port }) => {
 });
 
 const shutdown = () => {
+  // Остановка live закрывает открытые SSE-потоки, иначе `close` ждал бы их вечно.
+  const liveStopped = live.stop();
   server.close(async () => {
-    await outbox.stop();
+    await Promise.all([outbox.stop(), liveStopped]);
     await db.$client.end({ timeout: 5 });
     process.exit(0);
   });
+  if (!("closeIdleConnections" in server)) return;
+  // Соединение закончившегося потока браузер держит keep-alive и переподключается по нему же — закрываем.
+  void liveStopped.then(() => server.closeIdleConnections());
+  // Что не закончилось за 5 с, обрываем: иначе `close` ждёт без конца.
+  setTimeout(() => server.closeAllConnections(), 5000).unref();
 };
 process.on("SIGTERM", shutdown);
 process.on("SIGINT", shutdown);
