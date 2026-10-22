@@ -21,6 +21,8 @@ import { MyRegistrationPage } from "./pages/MyRegistrationPage.tsx";
 import { NotFoundPage } from "./pages/NotFoundPage.tsx";
 import { PublicEventPage } from "./pages/PublicEventPage.tsx";
 import { SupportPage } from "./pages/SupportPage.tsx";
+import { SupportEventPage } from "./pages/support/SupportEventPage.tsx";
+import { SupportEventsPage } from "./pages/support/SupportEventsPage.tsx";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -56,7 +58,11 @@ const router = createBrowserRouter([
   {
     path: "/support",
     element: <AccountLayout role="support" />,
-    children: [{ index: true, element: <SupportPage /> }],
+    children: [
+      { index: true, element: <SupportPage /> },
+      { path: "events", element: <SupportEventsPage /> },
+      { path: "events/:id", element: <SupportEventPage /> },
+    ],
   },
   { path: "*", element: <NotFoundPage /> },
 ]);

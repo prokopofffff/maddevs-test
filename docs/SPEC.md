@@ -297,7 +297,7 @@ Cookie `sid`: httpOnly, `SameSite=Lax`, `Path=/`, `Max-Age` 30 дней, `Secure
 | `GET /support/corrections` | — | `200 {corrections: [{id, createdAt, event: {id, title, startsAt, timezone, minAge}, email, old, new, belowMinAgeAfter}]}` — только `pending`, от старых к новым | — |
 | `POST /support/corrections/:id/accept` | — | `200 {status: "accepted"}` | `409 correction_not_pending`, `404` |
 | `POST /support/corrections/:id/reject` | `rejectSchema {reason?}` — до 500 символов после trim, пустая — без причины | `200 {status: "rejected"}` | `409 correction_not_pending`, `404` |
-| `GET /support/events` | — | `200 {events: [{id, title, organizerEmail, startsAt, timezone, counts}]}` | — |
+| `GET /support/events` | — | `200 {events: [{id, title, organizerEmail, startsAt, timezone, minAge, counts}]}`, по `starts_at` | — |
 | `GET /support/events/:id/registrations` | — | как у организатора, только чтение | `404` |
 
 Два последних маршрута — «если останется время» в тикете поддержки.
@@ -367,7 +367,7 @@ Cookie `sid`: httpOnly, `SameSite=Lax`, `Path=/`, `Max-Age` 30 дней, `Secure
 | `/organizer/events/:id` | `S8-EventAdmin` (s8a), `S8b-EventAdmin-States` (s8b, s8c) | `GET /organizer/events/:id`, `GET …/registrations`, `GET …/live`, `DELETE …/checkin/:registrationId` | Плашки «Подтверждено N из L» (сверх лимита — «N из L · K сверх лимита» предупреждающим цветом), «Лист ожидания N», «Пришло N из M» (D-021, D-032); ссылка для участников с копированием; список с фильтром по статусу; «Снять отметку» у отмеченных (D-023); «Нет связи». На 768 px таблица прокручивается горизонтально |
 | `/organizer/events/:id/checkin` | `S9-Checkin` (s9a–s9h) | `GET …/tickets/:code`, `POST …/checkin`, `GET …/live` | Поле в фокусе → Enter → карточка → «Пропустить» (Enter) → «Отмечен» → фокус в поле; жёлтое «Младше N лет на день события»; красные «Уже прошёл в ЧЧ:ММ», «Билет отменён», «Билет не найден»; строка «Пришло N из M» (D-023) |
 | `/support` | рамки нет, из `c-table`, `c-badges`, `c-buttons`, `c-dialog` | `GET /support/corrections`, `POST …/accept`, `POST …/reject` | Очередь «было → стало», предупреждение «Будет младше N лет на день события», счётчик ожидающих; отклонение с необязательной причиной (D-031) |
-| `/support/events` | рамки нет | `GET /support/events`, `GET /support/events/:id/registrations` | Только чтение; «если останется время» |
+| `/support/events`, `/support/events/:id` | рамки нет, из `S6-Events` и `S8-EventAdmin` | `GET /support/events`, `GET /support/events/:id/registrations` | Только чтение: список событий с email организатора; плашки и список участников без ссылки, правки, чекина и «Снять отметку». Вкладки «Заявки / События» |
 
 Название «Явка» и домен `yavka.example` из шаблона не используем: продукт называется «Регистрация на мероприятия», ссылки строятся от `PUBLIC_URL`.
 

@@ -7,7 +7,7 @@ import { withTx } from "../db/tx.ts";
 import { ageOnEventDay, belowMinAge } from "../domain/age.ts";
 import { checkIn, findTicket, uncheck } from "../domain/checkin.ts";
 import { countsFor, deleteEvent, lockEvent, started, updateEvent, type EventRow } from "../domain/events.ts";
-import { eventRegistrations } from "../domain/registrations.ts";
+import { registrationList } from "../domain/registrations.ts";
 import { apiError, type Env } from "../http.ts";
 import { eventInputSchema, eventPatchSchema } from "../schemas/event.ts";
 import { checkinSchema } from "../schemas/ticket.ts";
@@ -105,25 +105,7 @@ export const organizerRoutes = new Hono<Env>()
     const { db, user } = c.var;
     const event = await ownEvent(db, c.req.param("id"), user.id);
     if (!event) return apiError(c, 404, "not_found");
-    const list = await eventRegistrations(db, event.id);
-    return c.json(
-      {
-        registrations: list.map(({ row: r, waitlistPosition }) => ({
-          id: r.id,
-          firstName: r.firstName,
-          lastName: r.lastName,
-          email: r.email,
-          birthDate: r.birthDate,
-          ageOnEventDay: ageOnEventDay(r.birthDate, event),
-          belowMinAge: belowMinAge(r.birthDate, event),
-          status: r.status,
-          waitlistPosition,
-          confirmedAt: r.confirmedAt?.toISOString() ?? null,
-          checkedInAt: r.checkedInAt?.toISOString() ?? null,
-        })),
-      },
-      200,
-    );
+    return c.json({ registrations: await registrationList(db, event) }, 200);
   })
   .patch("/events/:id", validate("json", eventPatchSchema), async (c) => {
     const { db, clock, config, user } = c.var;

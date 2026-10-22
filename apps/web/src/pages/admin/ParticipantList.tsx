@@ -17,23 +17,27 @@ const filters = [
 type Filter = (typeof filters)[number][0];
 
 export const registrationsKey = (eventId: string) => ["organizer", "event", eventId, "registrations"] as const;
+const supportRegistrationsKey = (eventId: string) => ["support", "event", eventId, "registrations"] as const;
 
 /**
  * Список участников S8: все регистрации, включая отменённые, в порядке сервера (D-051); фильтр по статусу — на клиенте.
  * Время прихода — на часах пояса события. «Снять отметку» — у отмеченных (D-023): «Пришло» уменьшится
  * на всех открытых экранах через live, билет снова пройдёт чекин.
+ * `readOnly` — тот же список для поддержки: маршрут `/support/…`, без «Снять отметку» (D-030).
  */
 export function ParticipantList({
   eventId,
   timezone,
   minAge,
   empty,
+  readOnly = false,
 }: {
   eventId: string;
   timezone: string;
   minAge: number | null;
   /** Что показать, пока регистраций нет совсем. */
   empty: ReactNode;
+  readOnly?: boolean;
 }) {
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<Filter>("all");
@@ -47,9 +51,15 @@ export function ParticipantList({
     onSettled: () => queryClient.invalidateQueries({ queryKey: registrationsKey(eventId) }),
   });
   const list = useQuery({
-    queryKey: registrationsKey(eventId),
+    queryKey: readOnly ? supportRegistrationsKey(eventId) : registrationsKey(eventId),
     queryFn: async () =>
-      (await api(client.api.organizer.events[":id"].registrations.$get({ param: { id: eventId } }))).registrations,
+      (
+        await api(
+          readOnly
+            ? client.api.support.events[":id"].registrations.$get({ param: { id: eventId } })
+            : client.api.organizer.events[":id"].registrations.$get({ param: { id: eventId } }),
+        )
+      ).registrations,
   });
 
   if (list.isPending) return <PageSkeleton label="Загрузка участников" />;
@@ -114,7 +124,7 @@ export function ParticipantList({
                   <td className="table__cell--nowrap">
                     {r.checkedInAt ? formatClock(r.checkedInAt, timezone) : "—"}
                     {/* Кнопка в ячейке времени, а не отдельной колонкой, как в S8: на 1280 px она уехала бы за край таблицы. */}
-                    {r.checkedInAt && (
+                    {r.checkedInAt && !readOnly && (
                       <button
                         className="button button--quiet button--sm uncheck-button"
                         type="button"

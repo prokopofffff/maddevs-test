@@ -379,3 +379,66 @@ describe("Поддержка: роли", () => {
     expect(answers[0]!.body).toEqual({ error: "not_found" });
   });
 });
+
+describe("Поддержка: события только на чтение", () => {
+  it("видит события всех организаторов по времени начала, с email организатора и счётчиками", async () => {
+    const t = testApp();
+    const late = await registered(t, { title: "Позднее", startsLocal: "2026-12-01T10:00", limit: 1 });
+    await register(t, late.eventId, participant({ email: "boris@example.com" }));
+    const early = await createEvent(t, { title: "Раннее", startsLocal: "2026-11-10T10:00" });
+    const support = await signInSupport(t);
+
+    const res = await support.get("/api/support/events");
+
+    expect(res.status).toBe(200);
+    const organizerEmail = async (organizer: typeof early.organizer) =>
+      (await organizer.get("/api/auth/me")).body.user.email;
+    expect(res.body.events).toEqual([
+      {
+        id: early.eventId,
+        title: "Раннее",
+        organizerEmail: await organizerEmail(early.organizer),
+        startsAt: "2026-11-10T03:00:00.000Z",
+        timezone: "Asia/Novosibirsk",
+        minAge: null,
+        counts: { confirmed: 0, limit: 50, waitlisted: 0, checkedIn: 0 },
+      },
+      {
+        id: late.eventId,
+        title: "Позднее",
+        organizerEmail: await organizerEmail(late.organizer),
+        startsAt: "2026-12-01T03:00:00.000Z",
+        timezone: "Asia/Novosibirsk",
+        minAge: null,
+        counts: { confirmed: 1, limit: 1, waitlisted: 1, checkedIn: 0 },
+      },
+    ]);
+  });
+
+  it("список регистраций события — тот же, что у организатора", async () => {
+    const t = testApp();
+    const { eventId, organizer, token } = await registered(t, { limit: 1 });
+    await register(t, eventId, participant({ email: "boris@example.com", birthDate: "2010-01-01" }));
+    await organizer.patch(`/api/organizer/events/${eventId}`, { minAge: 18 });
+    await cancel(t.client(), token);
+    const support = await signInSupport(t);
+
+    const res = await support.get(`/api/support/events/${eventId}/registrations`);
+
+    expect(res.status).toBe(200);
+    const own = await organizer.get(`/api/organizer/events/${eventId}/registrations`);
+    expect(res.body).toEqual(own.body);
+    expect(res.body.registrations).toHaveLength(2);
+  });
+
+  it("неизвестное событие — 404; организатору маршруты событий поддержки — 404", async () => {
+    const t = testApp();
+    const { eventId, organizer } = await registered(t);
+    const support = await signInSupport(t);
+
+    expect((await support.get("/api/support/events/00000000-0000-4000-8000-000000000000/registrations")).status).toBe(404);
+    expect((await support.get("/api/support/events/not-a-uuid/registrations")).status).toBe(404);
+    expect((await organizer.get("/api/support/events")).status).toBe(404);
+    expect((await organizer.get(`/api/support/events/${eventId}/registrations`)).status).toBe(404);
+  });
+});

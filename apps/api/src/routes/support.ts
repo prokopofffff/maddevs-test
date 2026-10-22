@@ -1,9 +1,14 @@
+import { asc, eq } from "drizzle-orm";
 import { Hono } from "hono";
+import { events, users } from "../db/schema.ts";
 import { correctionQueue, decideCorrection, type Decision } from "../domain/corrections.ts";
+import { countsFor } from "../domain/events.ts";
+import { registrationList } from "../domain/registrations.ts";
 import { apiError, type Env } from "../http.ts";
 import { rejectSchema } from "../schemas/support.ts";
 import { validate } from "../validation.ts";
 import { requireRole, requireUser } from "./auth.ts";
+import { isUuid } from "./params.ts";
 
 const ID = /^[1-9]\d{0,15}$/;
 
@@ -34,4 +39,38 @@ export const supportRoutes = new Hono<Env>()
     if (result.error) return apiError(c, 409, result.error);
     c.var.outbox.wake();
     return c.json({ status: "rejected" as const }, 200);
+  })
+  // Все события сервиса только на чтение: управлять ими поддержка не может (D-030).
+  .get("/events", async (c) => {
+    const { db } = c.var;
+    const rows = await db
+      .select({ event: events, organizerEmail: users.email })
+      .from(events)
+      .innerJoin(users, eq(users.id, events.organizerId))
+      .orderBy(asc(events.startsAt), asc(events.id));
+    const counts = await countsFor(
+      db,
+      rows.map((r) => r.event),
+    );
+    return c.json(
+      {
+        events: rows.map(({ event: e, organizerEmail }) => ({
+          id: e.id,
+          title: e.title,
+          organizerEmail,
+          startsAt: e.startsAt.toISOString(),
+          timezone: e.timezone,
+          minAge: e.minAge,
+          counts: counts.get(e.id)!,
+        })),
+      },
+      200,
+    );
+  })
+  .get("/events/:id/registrations", async (c) => {
+    const { db } = c.var;
+    const id = c.req.param("id");
+    const [event] = isUuid(id) ? await db.select().from(events).where(eq(events.id, id)) : [];
+    if (!event) return apiError(c, 404, "not_found");
+    return c.json({ registrations: await registrationList(db, event) }, 200);
   });

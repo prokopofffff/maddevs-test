@@ -8,6 +8,7 @@ import { Toast } from "../components/Toast.tsx";
 import { errorText } from "../errors.ts";
 import { formatDate, formatEventTime, formatWallTime, plural } from "../format.ts";
 import { RejectDialog } from "./support/RejectDialog.tsx";
+import { SupportNav } from "./support/SupportNav.tsx";
 
 export const correctionsKey = ["support", "corrections"] as const;
 
@@ -74,6 +75,7 @@ export function SupportPage() {
   return (
     <>
       {toast && <Toast message={toast} onDone={hideToast} />}
+      <SupportNav />
       <div className="page-header">
         <div className="page-header__group">
           <h1 className="heading page-header__title">Заявки на исправление</h1>
