@@ -1,9 +1,9 @@
 import { formatTicketCode } from "../../schemas/ticket.ts";
 import { formatEventTime, utcOffset } from "../../time.ts";
-import { BRAND, buttonBlock, codeBlock, eventBlock, headingBlock, layout, type Rendered } from "./layout.ts";
+import { BRAND, buttonBlock, codeBlock, eventBlock, headingBlock, layout, placeLine, type EventPlace, type Rendered } from "./layout.ts";
 
 export interface ReminderMail {
-  event: { title: string; startsAt: Date; timezone: string };
+  event: { title: string; startsAt: Date; timezone: string } & EventPlace;
   firstName: string;
   ticketCode: string;
   link: string;
@@ -15,6 +15,7 @@ export interface ReminderMail {
  */
 export function reminderMail({ event, firstName, ticketCode, link }: ReminderMail): Rendered {
   const time = formatEventTime(event.startsAt, event.timezone);
+  const place = placeLine(event);
   const ticket = formatTicketCode(ticketCode);
   const note = "По этой ссылке можно открыть билет и, если планы изменились, отказаться от участия.";
   return {
@@ -24,6 +25,7 @@ export function reminderMail({ event, firstName, ticketCode, link }: ReminderMai
       "",
       event.title,
       time,
+      place,
       "",
       `Код билета: ${ticket} — покажите на входе.`,
       "",
@@ -35,7 +37,7 @@ export function reminderMail({ event, firstName, ticketCode, link }: ReminderMai
     html: layout(
       [
         headingBlock(`${firstName}, напоминаем`, "До начала меньше суток"),
-        eventBlock(event.title, time),
+        eventBlock(event.title, time, undefined, place),
         codeBlock("Код билета", "Покажите на входе", ticket),
         buttonBlock("Моя регистрация", link, note),
       ],

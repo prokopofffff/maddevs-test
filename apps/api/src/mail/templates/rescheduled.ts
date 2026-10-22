@@ -1,6 +1,6 @@
 import { formatTicketCode } from "../../schemas/ticket.ts";
 import { formatEventTime, utcOffset } from "../../time.ts";
-import { BRAND, buttonBlock, codeBlock, eventBlock, headingBlock, layout, paragraphBlock, type Rendered } from "./layout.ts";
+import { BRAND, buttonBlock, codeBlock, eventBlock, headingBlock, layout, paragraphBlock, placeLine, type EventPlace, type Rendered } from "./layout.ts";
 
 interface EventTime {
   startsAt: Date;
@@ -8,7 +8,7 @@ interface EventTime {
 }
 
 export interface RescheduledMail {
-  event: EventTime & { title: string };
+  event: EventTime & EventPlace & { title: string };
   previous: EventTime;
   firstName: string;
   /** Подтверждённая — код билета, лист ожидания — номер в листе на момент переноса. */
@@ -23,6 +23,7 @@ export interface RescheduledMail {
 export function rescheduledMail({ event, previous, firstName, status, link }: RescheduledMail): Rendered {
   const was = formatEventTime(previous.startsAt, previous.timezone);
   const now = formatEventTime(event.startsAt, event.timezone);
+  const place = placeLine(event);
   const ticket = "ticketCode" in status ? formatTicketCode(status.ticketCode) : undefined;
   const waitlist =
     "position" in status
@@ -36,6 +37,7 @@ export function rescheduledMail({ event, previous, firstName, status, link }: Re
       "",
       event.title,
       `Новое время: ${now}`,
+      place,
       `Было: ${was}`,
       "",
       ticket ? `Ваш билет остаётся в силе. Код билета: ${ticket} — покажите на входе.` : waitlist!,
@@ -48,7 +50,7 @@ export function rescheduledMail({ event, previous, firstName, status, link }: Re
     html: layout(
       [
         headingBlock(`${firstName}, изменилось время`, "Событие перенесено"),
-        eventBlock(event.title, `Новое время: ${now}`, `Было: ${was}`),
+        eventBlock(event.title, `Новое время: ${now}`, `Было: ${was}`, place),
         ticket ? codeBlock("Код билета", "Остаётся в силе", ticket) : paragraphBlock(waitlist!),
         buttonBlock("Моя регистрация", link, note),
       ],

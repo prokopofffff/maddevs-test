@@ -1,9 +1,9 @@
 import { formatTicketCode } from "../../schemas/ticket.ts";
 import { formatEventTime, utcOffset } from "../../time.ts";
-import { BRAND, buttonBlock, codeBlock, eventBlock, headingBlock, layout, type Rendered } from "./layout.ts";
+import { BRAND, buttonBlock, codeBlock, eventBlock, headingBlock, layout, placeLine, type EventPlace, type Rendered } from "./layout.ts";
 
 export interface ConfirmedMail {
-  event: { title: string; startsAt: Date; timezone: string };
+  event: { title: string; startsAt: Date; timezone: string } & EventPlace;
   firstName: string;
   ticketCode: string;
   link: string;
@@ -12,6 +12,7 @@ export interface ConfirmedMail {
 /** «Место ваше»: билет и личная ссылка (рамка `S10-Email`, s10a). */
 export function confirmedMail({ event, firstName, ticketCode, link }: ConfirmedMail): Rendered {
   const time = formatEventTime(event.startsAt, event.timezone);
+  const place = placeLine(event);
   const ticket = formatTicketCode(ticketCode);
   return {
     subject: `Ваш билет: ${event.title}`,
@@ -20,6 +21,7 @@ export function confirmedMail({ event, firstName, ticketCode, link }: ConfirmedM
       "",
       event.title,
       time,
+      place,
       "",
       `Код билета: ${ticket} — покажите на входе.`,
       "",
@@ -31,7 +33,7 @@ export function confirmedMail({ event, firstName, ticketCode, link }: ConfirmedM
     html: layout(
       [
         headingBlock(`${firstName}, вы зарегистрированы`, "Место ваше"),
-        eventBlock(event.title, time),
+        eventBlock(event.title, time, undefined, place),
         codeBlock("Код билета", "Покажите на входе", ticket),
         buttonBlock(
           "Моя регистрация",
