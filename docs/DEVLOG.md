@@ -827,3 +827,8 @@
   - `pnpm e2e` → 4 passed (registration, cancel, lookup, two-tabs); `pnpm typecheck` (вместе с `e2e`), `pnpm lint` чистые; `pnpm test` → 19 файлов, 130 passed.
   - Локально 5432 занят Postgres вне Docker: compose поднят с `POSTGRES_PORT=5455 MAILPIT_SMTP_PORT=1055 MAILPIT_UI_PORT=8055`, тесты — с `TEST_DATABASE_URL`, `MAILPIT_URL`, `SMTP_PORT`, `E2E_PORT=3155`. Код это не затрагивает.
 - Дальше: PR, CI.
+
+## 2026-10-22 15:06 +0700 — PR по тикету «E2e: регистрация с кодом и отказ с повышением» открыт, CI зелёный
+- Сделано: [PR #87](https://github.com/prokopofffff/maddevs-test/pull/87), закрывает #69.
+- Проверка: CI runs 39744974216 и 39745006700 на `6f7bfa2`: `check` → pass, `e2e` → pass, 4 passed.
+- Дальше: ревью PR.
