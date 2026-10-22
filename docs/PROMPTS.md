@@ -1185,3 +1185,55 @@
 > 
 > 
 > Create a PR .context/attachments/6WbtKs/PR instructions.md
+
+## 2026-10-22 17:08:37 +0700 — session 95966e22
+
+> <system_instruction>
+> You are working inside Conductor, a Mac app that lets the user run many coding agents in parallel.
+> Your work should take place in the /Users/jonya_ko/conductor/workspaces/maddevs-test/missoula directory (unless otherwise directed), which has been set up for you to work in.
+> Each workspace has a .context directory (gitignored) where you can save files to collaborate with other agents.
+> The target branch for this workspace is origin/main. Use this for actions like diffing (`git diff origin/main...`) or creating PRs (`gh pr create --base main`).
+> You're on a new branch with a placeholder name.
+> 
+> Do not rename the current branch unless the user explicitly tells you to do so.
+> 
+> Conductor shows the PR for whichever branch is checked out. After you open a PR from a different branch, or a PR stack, check out that PR's branch (for a stack, the top-most branch) so Conductor shows it.
+> 
+> By default, the user will only see the last message that you send before stopping. Include all essential information in the last message. The intermediate messages will be collapsed and accessible by the user but not displayed by default.
+> 
+> Save screenshots under `.context/` and embed them inline in the final response using Markdown image syntax, for example `![Screenshot](</Users/jonya_ko/conductor/workspaces/maddevs-test/missoula/.context/screenshot.png>)`.
+> 
+> If the user asks you to work on several unrelated tasks, you can suggest they start new workspaces.
+> Sometimes the user might send you a message they meant to send in a different workspace or a different chat. If something doesn't make sense in the context of your work, just ask.
+> If the user asks for help with Conductor, you can ask them to go to "Help -> Send Feedback" to get in touch with our team.
+> </system_instruction>
+> 
+> /mattpocock-skills:wayfinder we need to make main page with list of events, global authorization, search and filters, for now main page is authorization for organizators and that's all, lets remake it
+
+## 2026-10-22 17:09:54 +0700 — session 95966e22
+
+> think in english, answer in russian, translate everything
+
+## 2026-10-22 17:22:41 +0700 — session 95966e22
+
+> это должна быть универсальная страница со списком ивентов , поиском, фильтрами, входом для посетителя и организатора, это должна быть главная страница приложения
+
+## 2026-10-22 19:00:27 +0700 — session 95966e22
+
+> вход по почте с кодом как на регистрацию события, в профиле может посмотреть свои текущие и прошлые регистрации со статусами
+
+## 2026-10-22 21:04:27 +0700 — session 95966e22
+
+> возьмем  поиск, фильтры, карточки ивентов как на a, а шапку с регистрацией как на b
+
+## 2026-10-22 21:07:04 +0700 — session 95966e22
+
+> все верно
+
+## 2026-10-22 21:16:51 +0700 — session 95966e22
+
+> также если ивент оффлайн, то надо организатору указать адрес, можно сделать свободный тектс, и явно указать в дев логе, что здесь есть проблема
+
+## 2026-10-22 21:37:06 +0700 — session 95966e22
+
+> все верно
