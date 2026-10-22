@@ -222,7 +222,7 @@ RETURNING …
 - `404 not_found` — нет объекта, чужое событие или маршрут не для этой роли (D-005, D-030);
 - `429 rate_limited` + `Retry-After` (D-006).
 
-**Корзины rate limit** (D-006): `auth` — 10/мин на signup и login; `public` — 20/мин на действия участника (помечены ★); `global` — 300/мин на всё. Значения из env.
+**Корзины rate limit** (D-006, D-053): `auth` — 10/мин на signup и login; `public` — 20/мин на действия участника (помечены ★); `global` — 300/мин на все запросы под `/api`, статика фронта не считается. Значения из env. Ключ — IP: адрес сокета, а при `TRUST_PROXY=1` — последний адрес `X-Forwarded-For`, его дописал прокси. Окно — фиксированная минута от первого запроса. Ответы несут `RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset`; `429` ещё и `Retry-After` в секундах — из него интерфейс берёт N в «Слишком много запросов, попробуйте через N секунд».
 
 ### Вход (D-005)
 
@@ -480,7 +480,7 @@ ESLint `no-restricted-imports` в `apps/web`: из `apps/api` разрешены
 | `PUBLIC_URL` | `http://localhost:3000` | основа ссылок в письмах и «ссылки для участников» |
 | `SMTP_HOST`, `SMTP_PORT` | `localhost`, `1025` | Mailpit |
 | `MAIL_FROM` | `Регистрация <no-reply@localhost>` | |
-| `TRUST_PROXY` | `0` | `1` — брать IP из `X-Forwarded-For` (D-006) |
+| `TRUST_PROXY` | `0` | `1` — брать IP из `X-Forwarded-For`, последний адрес (D-006, D-053) |
 | `RATE_LIMIT_GLOBAL`, `RATE_LIMIT_AUTH`, `RATE_LIMIT_PUBLIC` | `300`, `10`, `20` | в минуту на IP |
 | `COOKIE_SECURE` | `0` | |
 

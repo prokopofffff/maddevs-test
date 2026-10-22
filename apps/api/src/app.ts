@@ -7,8 +7,9 @@ import { authRoutes } from "./routes/auth.ts";
 import { organizerRoutes } from "./routes/organizer.ts";
 import { publicRoutes } from "./routes/public.ts";
 import { apiError } from "./http.ts";
+import { createRateLimits, type RateLimitConfig } from "./rate-limit.ts";
 
-export interface AppConfig {
+export interface AppConfig extends RateLimitConfig {
   publicUrl: string;
   cookieSecure: boolean;
 }
@@ -32,7 +33,17 @@ const noWake: OutboxWaker = { wake() {} };
 
 /** Фабрика приложения — единственная граница, которую видят тесты (D-041). */
 export function createApp({ db, clock, config, live, outbox = noWake }: AppDeps) {
+  // Счётчики живут в экземпляре приложения: у каждой тестовой сборки свои.
+  const limits = createRateLimits(config);
   const api = new Hono<Env>()
+    // Корзины D-006: общая на весь API, вход — signup и login, участник — действия со ★ в SPEC §4.
+    .use(limits.global)
+    .use("/auth/signup", limits.auth)
+    .use("/auth/login", limits.auth)
+    .use("/events/:id/verifications", limits.public)
+    .use("/verifications/:id/confirm", limits.public)
+    .use("/registrations/:token/cancel", limits.public)
+    .use("/registrations/:token/corrections", limits.public)
     .use(async (c, next) => {
       c.set("db", db);
       c.set("clock", clock);
