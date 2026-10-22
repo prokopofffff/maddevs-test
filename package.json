@@ -14,7 +14,8 @@
     "e2e": "pnpm --filter @app/e2e test",
     "lint": "eslint .",
     "typecheck": "pnpm -r typecheck",
-    "db:generate": "pnpm --filter @app/api db:generate"
+    "db:generate": "pnpm --filter @app/api db:generate",
+    "admin:create": "pnpm --filter @app/api admin:create"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

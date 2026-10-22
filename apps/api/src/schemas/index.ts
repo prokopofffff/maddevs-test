@@ -2,4 +2,5 @@
 export * from "./auth.ts";
 export * from "./event.ts";
 export * from "./participant.ts";
+export * from "./support.ts";
 export * from "./ticket.ts";

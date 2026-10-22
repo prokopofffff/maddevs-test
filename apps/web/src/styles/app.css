@@ -31,3 +31,10 @@ button.back-link { padding: 0; border: 0; background: none; font: inherit; font-
 
 /* «Снять отметку» рядом со временем прихода в списке участников (D-023). */
 .uncheck-button { margin-left: var(--space-3); }
+
+/* Очередь поддержки (D-031): «было → стало» столбиком, изменённое поле — акцентом шаблона. */
+.person-diff { margin: 0; padding: 0; list-style: none; white-space: nowrap; }
+.person-diff__changed { padding: 0 var(--space-1); border-radius: var(--radius-sm); background: var(--color-accent); color: var(--color-text); font-weight: var(--font-weight-bold); }
+.support-warning { display: inline-block; margin-top: var(--space-2); white-space: normal; }
+.support-event__title { font-weight: var(--font-weight-semibold); }
+.support-actions { display: flex; gap: var(--space-2); }

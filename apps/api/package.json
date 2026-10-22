@@ -7,11 +7,12 @@
     "./schemas": "./src/schemas/index.ts"
   },
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "TRUST_PROXY=1 tsx watch src/index.ts",
     "start": "tsx src/index.ts",
     "test": "vitest run",
     "typecheck": "tsc -p .",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "admin:create": "tsx src/scripts/admin-create.ts"
   },
   "dependencies": {
     "@date-fns/tz": "^1.5.0",
@@ -20,6 +21,7 @@
     "date-fns": "^4.4.0",
     "drizzle-orm": "0.45.4",
     "hono": "^4.13.13",
+    "hono-rate-limiter": "~0.5.4",
     "nodemailer": "^10.1.7",
     "postgres": "3.4.9",
     "tsx": "^4.23.15",

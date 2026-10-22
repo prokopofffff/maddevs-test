@@ -5,6 +5,7 @@ import type { Clock } from "../../src/clock.ts";
 import * as schema from "../../src/db/schema.ts";
 import { createJobs } from "../../src/jobs.ts";
 import { createLive } from "../../src/live.ts";
+import type { RateLimitConfig } from "../../src/rate-limit.ts";
 import { testDb } from "../setup/worker-db.ts";
 import { Mailbox } from "./mailbox.ts";
 
@@ -31,11 +32,15 @@ export interface Response<T = any> {
 export class Client {
   private cookies = new Map<string, string>();
 
-  constructor(private readonly app: ReturnType<typeof createApp>) {}
+  /** `headers` уходят с каждым запросом — например, `X-Forwarded-For` другого клиента. */
+  constructor(
+    private readonly app: ReturnType<typeof createApp>,
+    private readonly headers: Record<string, string> = {},
+  ) {}
 
   /** Сырой ответ с cookie сессии — для потоков, тело которых не кончается (SSE). */
   async open(path: string, method = "GET", body?: unknown): Promise<globalThis.Response> {
-    const headers = new Headers();
+    const headers = new Headers(this.headers);
     if (body !== undefined) headers.set("content-type", "application/json");
     if (this.cookies.size > 0) {
       headers.set("cookie", [...this.cookies].map(([k, v]) => `${k}=${v}`).join("; "));
@@ -81,8 +86,9 @@ export class Client {
  * Письма уходят только по `runJobs(now)` — пинок после коммита в тестах ничего не делает.
  * Live слушает базу воркера, только пока тесту нужен поток, и отписывается в конце теста.
  * `queries` собирает SQL, который приложение отправило в базу, — для проверки `.for('update')` (D-009).
+ * Лимиты rate limit подняты, чтобы не мешать остальным тестам; тест корзин передаёт свои (D-006).
  */
-export function testApp(options: { now?: string; queries?: string[] } = {}) {
+export function testApp(options: { now?: string; queries?: string[]; rateLimit?: Partial<RateLimitConfig> } = {}) {
   const { queries } = options;
   const db = queries
     ? drizzle(testDb().$client, { schema, logger: { logQuery: (query) => void queries.push(query) } })
@@ -91,9 +97,17 @@ export function testApp(options: { now?: string; queries?: string[] } = {}) {
   const mailbox = new Mailbox();
   const live = createLive(db);
   onTestFinished(() => live.stop());
-  const app = createApp({ db, clock, live, config: { publicUrl: PUBLIC_URL, cookieSecure: false } });
+  const config = {
+    publicUrl: PUBLIC_URL,
+    cookieSecure: false,
+    trustProxy: false,
+    rateLimits: { global: 100_000, auth: 100_000, public: 100_000 },
+    ...options.rateLimit,
+  };
+  const app = createApp({ db, clock, live, config });
   const { runJobs, sweepReminders } = createJobs({ db, transport: mailbox, publicUrl: PUBLIC_URL });
-  return { app, clock, mailbox, runJobs, sweepReminders, client: () => new Client(app) };
+  const client = (headers?: Record<string, string>) => new Client(app, headers);
+  return { app, clock, mailbox, runJobs, sweepReminders, client };
 }
 
 export type TestApp = ReturnType<typeof testApp>;

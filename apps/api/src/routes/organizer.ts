@@ -7,13 +7,13 @@ import { withTx } from "../db/tx.ts";
 import { ageOnEventDay, belowMinAge } from "../domain/age.ts";
 import { checkIn, findTicket, uncheck } from "../domain/checkin.ts";
 import { countsFor, deleteEvent, lockEvent, started, updateEvent, type EventRow } from "../domain/events.ts";
-import { eventRegistrations } from "../domain/registrations.ts";
+import { registrationList } from "../domain/registrations.ts";
 import { apiError, type Env } from "../http.ts";
 import { eventInputSchema, eventPatchSchema } from "../schemas/event.ts";
 import { checkinSchema } from "../schemas/ticket.ts";
 import { instantToLocal, localToInstant } from "../time.ts";
 import { validate } from "../validation.ts";
-import { requireUser } from "./auth.ts";
+import { requireRole, requireUser } from "./auth.ts";
 import { isUuid } from "./params.ts";
 
 const organizerEvent = (e: EventRow, now: Date) => ({
@@ -39,7 +39,8 @@ async function ownEvent(db: Queryable, id: string, organizerId: number) {
 }
 
 export const organizerRoutes = new Hono<Env>()
-  .use(requireUser)
+  // Своих событий у поддержки нет: организаторские маршруты отвечают ей `404` (D-030).
+  .use(requireUser, requireRole("organizer"))
   .get("/events", async (c) => {
     const { db, clock, user } = c.var;
     const now = clock.now();
@@ -104,40 +105,25 @@ export const organizerRoutes = new Hono<Env>()
     const { db, user } = c.var;
     const event = await ownEvent(db, c.req.param("id"), user.id);
     if (!event) return apiError(c, 404, "not_found");
-    const list = await eventRegistrations(db, event.id);
-    return c.json(
-      {
-        registrations: list.map(({ row: r, waitlistPosition }) => ({
-          id: r.id,
-          firstName: r.firstName,
-          lastName: r.lastName,
-          email: r.email,
-          birthDate: r.birthDate,
-          ageOnEventDay: ageOnEventDay(r.birthDate, event),
-          belowMinAge: belowMinAge(r.birthDate, event),
-          status: r.status,
-          waitlistPosition,
-          confirmedAt: r.confirmedAt?.toISOString() ?? null,
-          checkedInAt: r.checkedInAt?.toISOString() ?? null,
-        })),
-      },
-      200,
-    );
+    return c.json({ registrations: await registrationList(db, event) }, 200);
   })
   .patch("/events/:id", validate("json", eventPatchSchema), async (c) => {
-    const { db, clock, config, user } = c.var;
+    const { db, clock, config, outbox, user } = c.var;
     const id = c.req.param("id");
     const patch = c.req.valid("json");
     const now = clock.now();
-    const event = await withTx(db, async (tx) => {
+    const result = await withTx(db, async (tx) => {
       const locked = isUuid(id) ? await lockEvent(tx, id) : undefined;
       if (!locked || locked.organizerId !== user.id) return undefined;
       return updateEvent(tx, locked, patch, { now, publicUrl: config.publicUrl });
     });
-    if (!event) return apiError(c, 404, "not_found");
-    if ("error" in event) return apiError(c, event.error === "event_started" ? 409 : 501, event.error);
+    if (!result) return apiError(c, 404, "not_found");
+    if ("error" in result) return apiError(c, result.error === "event_started" ? 409 : 400, result.error);
+    const { event, rescheduled, belowMinAgeCount } = result;
+    // Письма о переносе и повышении закоммичены — отправка стартует сразу, не дожидаясь тика (D-014).
+    outbox.wake();
     const counts = await countsFor(db, [event]);
-    return c.json({ event: organizerEvent(event, now), counts: counts.get(event.id)! }, 200);
+    return c.json({ event: organizerEvent(event, now), counts: counts.get(event.id)!, rescheduled, belowMinAgeCount }, 200);
   })
   .delete("/events/:id", async (c) => {
     const { db, user } = c.var;

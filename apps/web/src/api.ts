@@ -20,6 +20,9 @@ type Success<R> = R extends ClientResponse<infer T, infer S, infer _F> ? (S exte
 export async function api<R extends ClientResponse<unknown, number, string>>(request: Promise<R>): Promise<Success<R>> {
   const res = await request;
   if (res.ok) return (res.status === 204 ? undefined : await res.json()) as Success<R>;
-  const { error, ...details } = (await res.json().catch(() => ({}))) as { error?: string };
+  const { error, ...details } = (await res.json().catch(() => ({}))) as Record<string, unknown> & { error?: string };
+  // Через сколько секунд rate limit пустит снова, сервер сообщает заголовком (D-006).
+  const retryAfter = res.headers.get("Retry-After");
+  if (retryAfter !== null && details.retryAfter === undefined) details.retryAfter = Number(retryAfter);
   throw new ApiError(res.status, error ?? "unknown", details);
 }

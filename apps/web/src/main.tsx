@@ -11,7 +11,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { createBrowserRouter, Navigate, RouterProvider } from "react-router";
 import { ApiError } from "./api.ts";
-import { OrganizerLayout } from "./components/OrganizerLayout.tsx";
+import { AccountLayout } from "./components/AccountLayout.tsx";
 import { AuthPage } from "./pages/AuthPage.tsx";
 import { CheckinPage } from "./pages/CheckinPage.tsx";
 import { EventAdminPage } from "./pages/EventAdminPage.tsx";
@@ -20,6 +20,9 @@ import { MyEventsPage } from "./pages/MyEventsPage.tsx";
 import { MyRegistrationPage } from "./pages/MyRegistrationPage.tsx";
 import { NotFoundPage } from "./pages/NotFoundPage.tsx";
 import { PublicEventPage } from "./pages/PublicEventPage.tsx";
+import { SupportPage } from "./pages/SupportPage.tsx";
+import { SupportEventPage } from "./pages/support/SupportEventPage.tsx";
+import { SupportEventsPage } from "./pages/support/SupportEventsPage.tsx";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -38,7 +41,7 @@ const router = createBrowserRouter([
   { path: "/r/:token", element: <MyRegistrationPage /> },
   {
     path: "/organizer",
-    element: <OrganizerLayout />,
+    element: <AccountLayout role="organizer" />,
     children: [
       { index: true, element: <MyEventsPage /> },
       { path: "events/new", element: <EventFormPage key="new" /> },
@@ -49,8 +52,17 @@ const router = createBrowserRouter([
   // Экран входа — без шапки кабинета, только для владельца события (S9).
   {
     path: "/organizer/events/:id/checkin",
-    element: <OrganizerLayout bare />,
+    element: <AccountLayout role="organizer" bare />,
     children: [{ index: true, element: <CheckinPage /> }],
+  },
+  {
+    path: "/support",
+    element: <AccountLayout role="support" />,
+    children: [
+      { index: true, element: <SupportPage /> },
+      { path: "events", element: <SupportEventsPage /> },
+      { path: "events/:id", element: <SupportEventPage /> },
+    ],
   },
   { path: "*", element: <NotFoundPage /> },
 ]);
