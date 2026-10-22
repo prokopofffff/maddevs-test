@@ -125,19 +125,22 @@ export const organizerRoutes = new Hono<Env>()
     );
   })
   .patch("/events/:id", validate("json", eventPatchSchema), async (c) => {
-    const { db, clock, config, user } = c.var;
+    const { db, clock, config, outbox, user } = c.var;
     const id = c.req.param("id");
     const patch = c.req.valid("json");
     const now = clock.now();
-    const event = await withTx(db, async (tx) => {
+    const result = await withTx(db, async (tx) => {
       const locked = isUuid(id) ? await lockEvent(tx, id) : undefined;
       if (!locked || locked.organizerId !== user.id) return undefined;
       return updateEvent(tx, locked, patch, { now, publicUrl: config.publicUrl });
     });
-    if (!event) return apiError(c, 404, "not_found");
-    if ("error" in event) return apiError(c, event.error === "event_started" ? 409 : 501, event.error);
+    if (!result) return apiError(c, 404, "not_found");
+    if ("error" in result) return apiError(c, result.error === "event_started" ? 409 : 400, result.error);
+    const { event, rescheduled, belowMinAgeCount } = result;
+    // Письма о переносе и повышении закоммичены — отправка стартует сразу, не дожидаясь тика (D-014).
+    outbox.wake();
     const counts = await countsFor(db, [event]);
-    return c.json({ event: organizerEvent(event, now), counts: counts.get(event.id)! }, 200);
+    return c.json({ event: organizerEvent(event, now), counts: counts.get(event.id)!, rescheduled, belowMinAgeCount }, 200);
   })
   .delete("/events/:id", async (c) => {
     const { db, user } = c.var;
