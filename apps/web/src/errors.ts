@@ -18,7 +18,6 @@ const messages: Record<string, string> = {
   ticket_cancelled: "Билет отменён",
   ticket_not_found: "Билет не найден",
   event_started: "Событие уже началось — это действие недоступно",
-  not_implemented: "Перенос события пока недоступен",
 };
 
 /** Код ошибки API → русский текст (D-024). */

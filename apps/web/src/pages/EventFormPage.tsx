@@ -80,6 +80,8 @@ function EventForm({ loaded }: { loaded?: OrganizerEvent }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   // Правка с лимитом ниже подтверждённых ждёт подтверждения в диалоге (D-032).
   const [overLimit, setOverLimit] = useState<{ patch: EventPatch; excess: number } | null>(null);
+  // Перенос или новый минимальный возраст ничего не отменяют — форма только предупреждает (D-017, S7 s7b).
+  const [ageWarning, setAgeWarning] = useState<{ count: number; rescheduled: boolean } | null>(null);
   const timezones = useMemo(() => {
     const now = new Date();
     return Intl.supportedValuesOf("timeZone").map((tz) => ({ tz, label: `${tz.replaceAll("_", " ")} (${utcOffset(now, tz)})` }));
@@ -102,13 +104,15 @@ function EventForm({ loaded }: { loaded?: OrganizerEvent }) {
   const update = useMutation({
     mutationFn: (patch: EventPatch) =>
       api(client.api.organizer.events[":id"].$patch({ param: { id: loaded!.event.id }, json: patch })),
-    onSuccess: ({ event, counts }) => {
+    onSuccess: ({ event, counts, rescheduled, belowMinAgeCount }, patch) => {
       setOverLimit(null);
+      const ageChanged = rescheduled || patch.minAge !== undefined;
+      setAgeWarning(ageChanged && belowMinAgeCount > 0 ? { count: belowMinAgeCount, rescheduled } : null);
       const next = { ...loaded!, event, counts };
       queryClient.setQueryData(eventKey(event.id), next);
       queryClient.invalidateQueries({ queryKey: myEventsKey });
       form.reset(valuesOf(next));
-      setToast("Изменения сохранены");
+      setToast(rescheduled ? "Событие перенесено — участникам ушли письма" : "Изменения сохранены");
     },
     // Событие могло начаться, пока форма была открыта: перечитанное событие заблокирует дату и лимит (D-033).
     onError: () => queryClient.invalidateQueries({ queryKey: eventKey(loaded!.event.id) }),
@@ -132,6 +136,8 @@ function EventForm({ loaded }: { loaded?: OrganizerEvent }) {
   });
   const { errors, dirtyFields } = form.formState;
   const keepsMoment = loaded && !dirtyFields.date && !dirtyFields.time;
+  // Письмо о переносе получат все неотменённые, включая лист ожидания (D-016).
+  const notifiesOnMove = !keepsMoment && loaded !== undefined && loaded.counts.confirmed + loaded.counts.waitlisted > 0;
   const previewTime = useMemo(() => {
     if (!date || !time || !timezone) return null;
     // Пояс сменили, а дату и время нет — момент тот же, показываем его на часах нового пояса.
@@ -175,6 +181,22 @@ function EventForm({ loaded }: { loaded?: OrganizerEvent }) {
         </Link>
         <h1 className="heading page-header__title">{loaded ? "Редактирование события" : "Новое событие"}</h1>
       </div>
+      {ageWarning && loaded && (
+        <div className="banner banner--warning" role="status">
+          <Icon name="warning" />
+          <div className="banner__body">
+            <p>
+              {ageWarning.count} {plural(ageWarning.count, ["участник не проходит", "участника не проходят", "участников не проходят"])}{" "}
+              по возрасту {ageWarning.rescheduled ? "на новую дату" : "на день события"}
+            </p>
+            <p>
+              <Link className="s7-banner-link" to={`/organizer/events/${loaded.event.id}`}>
+                Показать в списке участников
+              </Link>
+            </p>
+          </div>
+        </div>
+      )}
       <div className="form-layout">
         <form className="form" aria-label="Параметры события" noValidate onSubmit={submit}>
           {saveError && (
@@ -233,10 +255,14 @@ function EventForm({ loaded }: { loaded?: OrganizerEvent }) {
               {field("time").error}
             </div>
           </div>
-          {started && (
+          {started ? (
             <p className="field__hint" id="event-started-hint">
               Событие началось — дату, время и лимит мест изменить нельзя
             </p>
+          ) : (
+            notifiesOnMove && (
+              <p className="field__hint">Это перенос: всем участникам, включая лист ожидания, придёт письмо с новым временем</p>
+            )
           )}
           <div className={field("timezone").className}>
             <label className="field__label" htmlFor="event-timezone">
