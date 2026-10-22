@@ -2,19 +2,20 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 import { Link, useParams } from "react-router";
 import { api, ApiError, client } from "../api.ts";
-import { ErrorBanner } from "../components/Banner.tsx";
+import { ErrorBanner, OfflineBanner } from "../components/Banner.tsx";
 import { Icon } from "../components/Icon.tsx";
 import { PageSkeleton } from "../components/Skeleton.tsx";
 import { Toast } from "../components/Toast.tsx";
 import { errorText } from "../errors.ts";
 import { formatEventTime } from "../format.ts";
+import { useLiveCounts } from "../live.ts";
 import { EventStats } from "./admin/EventStats.tsx";
 import { ParticipantList } from "./admin/ParticipantList.tsx";
 import { NotFoundPage } from "./NotFoundPage.tsx";
 
 /**
  * S8-EventAdmin: плашки, ссылка для участников, список участников с фильтром, «Редактировать», «Открыть чекин».
- * Данные — при загрузке; live и «Снять отметку» приходят своими тикетами.
+ * Плашки и список обновляются live (D-021); при обрыве — S8b «Нет связи» с последними цифрами.
  */
 export function EventAdminPage() {
   const { id = "" } = useParams();
@@ -24,12 +25,13 @@ export function EventAdminPage() {
     queryKey: ["organizer", "event", id],
     queryFn: () => api(client.api.organizer.events[":id"].$get({ param: { id } })),
   });
+  const { offline } = useLiveCounts(id);
 
   if (event.isPending) return <PageSkeleton label="Загрузка события" />;
   if (event.error instanceof ApiError && event.error.status === 404) return <NotFoundPage embedded />;
   if (event.isError) return <ErrorBanner title="Не удалось загрузить событие">{errorText(event.error)}</ErrorBanner>;
 
-  const { event: e, counts, publicUrl, registrationCount } = event.data;
+  const { event: e, counts, publicUrl } = event.data;
 
   const copy = async () => {
     try {
@@ -43,6 +45,7 @@ export function EventAdminPage() {
   return (
     <>
       {toast && <Toast message={toast} onDone={hideToast} />}
+      {offline && <OfflineBanner />}
       <Link className="back-link s8-back" to="/organizer">
         <Icon name="back" />
         Мои события
@@ -103,20 +106,24 @@ export function EventAdminPage() {
             Участники
           </h2>
         </div>
-        {registrationCount === 0 ? (
-          <div className="empty-state">
-            <span className="empty-state__icon">
-              <Icon name="calendar" />
-            </span>
-            <p className="empty-state__title">Пока никого</p>
-            <p className="empty-state__text">Отправьте ссылку на событие — зарегистрировавшиеся появятся здесь сразу.</p>
-            <button className="button button--secondary" type="button" onClick={copy}>
-              Скопировать ссылку
-            </button>
-          </div>
-        ) : (
-          <ParticipantList eventId={e.id} timezone={e.timezone} minAge={e.minAge} />
-        )}
+        <ParticipantList
+          eventId={e.id}
+          timezone={e.timezone}
+          minAge={e.minAge}
+          // Пусто — по живому списку: первая регистрация появится без перезагрузки.
+          empty={
+            <div className="empty-state">
+              <span className="empty-state__icon">
+                <Icon name="calendar" />
+              </span>
+              <p className="empty-state__title">Пока никого</p>
+              <p className="empty-state__text">Отправьте ссылку на событие — зарегистрировавшиеся появятся здесь сразу.</p>
+              <button className="button button--secondary" type="button" onClick={copy}>
+                Скопировать ссылку
+              </button>
+            </div>
+          }
+        />
       </section>
     </>
   );

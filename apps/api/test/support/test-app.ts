@@ -1,8 +1,10 @@
 import { drizzle } from "drizzle-orm/postgres-js";
+import { onTestFinished } from "vitest";
 import { createApp } from "../../src/app.ts";
 import type { Clock } from "../../src/clock.ts";
 import * as schema from "../../src/db/schema.ts";
 import { createJobs } from "../../src/jobs.ts";
+import { createLive } from "../../src/live.ts";
 import { testDb } from "../setup/worker-db.ts";
 import { Mailbox } from "./mailbox.ts";
 
@@ -31,7 +33,8 @@ export class Client {
 
   constructor(private readonly app: ReturnType<typeof createApp>) {}
 
-  async request<T = any>(method: string, path: string, body?: unknown): Promise<Response<T>> {
+  /** Сырой ответ с cookie сессии — для потоков, тело которых не кончается (SSE). */
+  async open(path: string, method = "GET", body?: unknown): Promise<globalThis.Response> {
     const headers = new Headers();
     if (body !== undefined) headers.set("content-type", "application/json");
     if (this.cookies.size > 0) {
@@ -49,6 +52,11 @@ export class Client {
       if (expired || value === "") this.cookies.delete(name!.trim());
       else this.cookies.set(name!.trim(), value);
     }
+    return res;
+  }
+
+  async request<T = any>(method: string, path: string, body?: unknown): Promise<Response<T>> {
+    const res = await this.open(path, method, body);
     const isJson = res.headers.get("content-type")?.includes("application/json");
     const payload = isJson ? await res.json() : await res.text();
     return { status: res.status, body: (payload === "" ? undefined : payload) as T, headers: res.headers };
@@ -71,6 +79,7 @@ export class Client {
 /**
  * Тестовая сборка приложения (D-041): база воркера, подставные часы, фейковый транспорт.
  * Письма уходят только по `runJobs(now)` — пинок после коммита в тестах ничего не делает.
+ * Live слушает базу воркера, только пока тесту нужен поток, и отписывается в конце теста.
  * `queries` собирает SQL, который приложение отправило в базу, — для проверки `.for('update')` (D-009).
  */
 export function testApp(options: { now?: string; queries?: string[] } = {}) {
@@ -80,7 +89,9 @@ export function testApp(options: { now?: string; queries?: string[] } = {}) {
     : testDb();
   const clock = new TestClock(new Date(options.now ?? "2026-11-01T09:00:00Z"));
   const mailbox = new Mailbox();
-  const app = createApp({ db, clock, config: { publicUrl: PUBLIC_URL, cookieSecure: false } });
+  const live = createLive(db);
+  onTestFinished(() => live.stop());
+  const app = createApp({ db, clock, live, config: { publicUrl: PUBLIC_URL, cookieSecure: false } });
   const { runJobs, sweepReminders } = createJobs({ db, transport: mailbox, publicUrl: PUBLIC_URL });
   return { app, clock, mailbox, runJobs, sweepReminders, client: () => new Client(app) };
 }
