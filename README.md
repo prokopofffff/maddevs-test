@@ -60,6 +60,30 @@ POSTGRES_PORT=5455 API_PORT=3001 PUBLIC_URL=http://localhost:3001 docker compose
 
 Гонку за последнее место (R3) руками не воспроизвести — её проверяет тест.
 
+## Разработка
+
+Нужны Docker и Node ≥ 22.12 с pnpm (`corepack enable`).
+
+```sh
+pnpm install
+pnpm dev       # Postgres и Mailpit из compose, API с перезапуском по правкам и Vite
+pnpm db:seed   # в другом терминале, по желанию
+```
+
+- Приложение: <http://localhost:5173> (Vite проксирует `/api` на API на :3000)
+- Mailpit: <http://localhost:8025>
+
+`pnpm dev` поднимает контейнеры `postgres` и `mailpit` и ждёт их готовности. Если они уже работают — переиспользует. После Ctrl+C контейнеры остаются, остановить: `docker compose stop`. Ссылки в письмах ведут на Vite.
+
+Порты сдвигаются переменными: `POSTGRES_PORT`, `MAILPIT_SMTP_PORT`, `MAILPIT_UI_PORT` — для контейнеров и подключения к ним, `PORT` — API, `WEB_PORT` — Vite. Занятый порт Vite — ошибка, а не тихий переход на соседний, иначе ссылки в письмах вели бы не туда (D-054). `pnpm db:seed` и `db:reset` при сдвинутом Postgres берут `DATABASE_URL`:
+
+```sh
+POSTGRES_PORT=5455 PORT=3001 WEB_PORT=5174 pnpm dev
+DATABASE_URL=postgres://app:app@localhost:5455/app PUBLIC_URL=http://localhost:5174 pnpm db:seed
+```
+
+Контейнер `api` из compose и `pnpm dev` используют одну базу `app` и по умолчанию один порт 3000 — одновременно их не запускают.
+
 ## Тесты
 
 Тестам нужны Postgres и Mailpit из compose и Node ≥ 22.12 с pnpm (`corepack enable`).

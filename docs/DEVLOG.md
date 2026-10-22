@@ -862,3 +862,22 @@
 - Проверка: CI runs 39748712971 и 39748760168 на `72bf3d3`: `check` → pass, `e2e` → pass.
 - Попутно: тикет «Лимит мест: увеличение и „сверх лимита“» (#60) остался открытым, хотя PR #79 слит — в теле PR не было `Closes`. Не трогал.
 - Дальше: ревью PR.
+
+## 2026-10-22 16:11 +0700 — Начало: весь dev-стенд одной командой `pnpm dev`
+- Цель: сейчас `pnpm dev` поднимает только API и Vite, Postgres и Mailpit нужно запускать отдельно через compose. Сделать так, чтобы `pnpm dev` поднимал и их, с учётом сдвинутых портов (`POSTGRES_PORT`, `MAILPIT_SMTP_PORT`).
+- Дальше: скрипты, проверка на чистом запуске.
+
+## 2026-10-22 16:15 +0700 — `pnpm dev` поднимает весь стенд
+- Сделано (D-054):
+  - Корневой `dev`: `docker compose up -d --wait postgres mailpit`, затем API и Vite параллельно.
+  - `apps/api` `dev`: `DATABASE_URL` и `SMTP_PORT` по умолчанию из `POSTGRES_PORT` и `MAILPIT_SMTP_PORT`; `PUBLIC_URL` по умолчанию — адрес Vite (`WEB_PORT`, 5173), чтобы ссылки в письмах открывали фронт.
+  - `apps/web/vite.config.ts`: порт `WEB_PORT` со `strictPort`, прокси `/api` на `PORT`.
+  - README: раздел «Разработка».
+- Проверка (локально 5432 занят Postgres вне Docker, 3000 и 5173 — другими процессами):
+  - `POSTGRES_PORT=5455 PORT=3011 WEB_PORT=5174 pnpm dev` с нуля: созданы том и контейнеры, оба `Healthy`, затем «API слушает http://localhost:3011» и Vite на :5174. Повторный запуск при работающих контейнерах — `Running`/`Healthy`, без пересоздания.
+  - `pnpm db:seed` с `DATABASE_URL` на :5455 → ссылки `http://localhost:5174/...`; вход `demo` через прокси Vite `POST :5174/api/auth/login` → 200; через минуту в Mailpit 3 напоминания, личная ссылка в письме `http://localhost:5174/r/…`, открывается → 200.
+  - Занятый `WEB_PORT`: Vite падает с «Port 5174 is already in use» вместо перехода на соседний порт.
+  - Первый прогон до правки Vite выявил это: при занятом 5173 Vite молча ушёл на 5174, а ссылки вели бы на 5173 — отсюда `strictPort`.
+  - `pnpm typecheck`, `pnpm lint` чистые; `pnpm test` → 20 файлов, 136 passed.
+- Не проверено: Ctrl+C в интерактивном терминале — процессы останавливались `kill`; Windows.
+- Дальше: PR.

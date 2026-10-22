@@ -7,7 +7,7 @@
     "./schemas": "./src/schemas/index.ts"
   },
   "scripts": {
-    "dev": "TRUST_PROXY=1 tsx watch src/index.ts",
+    "dev": "TRUST_PROXY=1 DATABASE_URL=${DATABASE_URL:-postgres://app:app@localhost:${POSTGRES_PORT:-5432}/app} SMTP_PORT=${SMTP_PORT:-${MAILPIT_SMTP_PORT:-1025}} PUBLIC_URL=${PUBLIC_URL:-http://localhost:${WEB_PORT:-5173}} tsx watch src/index.ts",
     "start": "tsx src/index.ts",
     "test": "vitest run",
     "typecheck": "tsc -p .",
