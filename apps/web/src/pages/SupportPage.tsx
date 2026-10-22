@@ -134,7 +134,7 @@ export function SupportPage() {
                     </td>
                     <td>
                       <PersonCell person={c.new} before={c.old} />
-                      {c.belowMinAgeAfter && (
+                      {c.belowMinAgeAfter && c.event.minAge > 0 && (
                         <span className="warn-mark support-warning">
                           Будет младше {c.event.minAge} лет на день события
                         </span>

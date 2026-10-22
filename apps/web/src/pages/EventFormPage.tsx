@@ -1,26 +1,38 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { eventInputSchema, type EventPatch } from "@app/api/schemas";
+import { AGE_RATINGS, EVENT_CATEGORIES, eventFieldsSchema, type AgeRating, type EventPatch } from "@app/api/schemas";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { Link, useNavigate, useParams } from "react-router";
 import { z } from "zod";
 import { api, ApiError, client } from "../api.ts";
+import { AgeBadge } from "../components/AgeBadge.tsx";
 import { ErrorBanner } from "../components/Banner.tsx";
 import { ConfirmDialog } from "../components/ConfirmDialog.tsx";
 import { Icon } from "../components/Icon.tsx";
 import { PageSkeleton } from "../components/Skeleton.tsx";
 import { Toast } from "../components/Toast.tsx";
 import { errorText } from "../errors.ts";
-import { formatEventTime, formatWallTime, plural, utcOffset } from "../format.ts";
+import { categoryLabel, formatEventTime, formatWallTime, plural, utcOffset } from "../format.ts";
 import { myEventsKey } from "./MyEventsPage.tsx";
 import { NotFoundPage } from "./NotFoundPage.tsx";
 
-// В форме дата и время — два поля (S7-EventForm); в API уходит одно `startsLocal` (D-015).
-const formSchema = eventInputSchema.omit({ startsLocal: true }).extend({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  time: z.string().regex(/^\d{2}:\d{2}$/),
-});
+/**
+ * В форме дата и время — два поля (S7-EventForm); в API уходит одно `startsLocal` (D-015).
+ * Город и адрес — строки, пустые у онлайн-события: на схему с `.superRefine` `.omit` не применить (zod 4),
+ * поэтому берём поля без проверки пары и повторяем её здесь (D-059).
+ */
+const formSchema = eventFieldsSchema
+  .omit({ startsLocal: true, city: true, address: true })
+  .extend({
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    time: z.string().regex(/^\d{2}:\d{2}$/),
+    city: z.string().trim().max(100),
+    address: z.string().trim().max(300),
+  })
+  // `when` — чтобы пустые город и адрес подсветились вместе с пустой категорией, а не после неё.
+  .refine((event) => event.format !== "offline" || event.city !== "", { path: ["city"], when: () => true })
+  .refine((event) => event.format !== "offline" || event.address !== "", { path: ["address"], when: () => true });
 type FormValues = z.infer<typeof formSchema>;
 
 type OrganizerEvent = Awaited<ReturnType<typeof loadEvent>>;
@@ -37,13 +49,34 @@ const fieldErrors: Partial<Record<keyof FormValues, string>> = {
   time: "Укажите время начала",
   timezone: "Выберите часовой пояс из списка",
   limit: "Лимит — целое число от 1 до 100 000",
-  minAge: "Возраст — целое число от 1 до 120 или пусто",
+  format: "Выберите формат — офлайн или онлайн",
+  city: "Укажите город",
+  address: "Укажите адрес",
+  category: "Выберите категорию",
+  minAge: "Выберите возрастное ограничение",
 };
 
 const valuesOf = ({ event: e }: OrganizerEvent): FormValues => {
   const [date = "", time = ""] = e.startsLocal.split("T");
-  return { title: e.title, description: e.description, date, time, timezone: e.timezone, limit: e.limit, minAge: e.minAge };
+  return {
+    title: e.title,
+    description: e.description,
+    date,
+    time,
+    timezone: e.timezone,
+    limit: e.limit,
+    format: e.format,
+    city: e.city ?? "",
+    address: e.address ?? "",
+    category: e.category,
+    // Сервер хранит число, но пишет только значения шкалы (D-060).
+    minAge: e.minAge as AgeRating,
+  };
 };
+
+/** Онлайн-событие места не имеет: скрытые поля города и адреса в API не уходят (D-059). */
+const placeOf = (values: Pick<FormValues, "format" | "city" | "address">) =>
+  values.format === "offline" ? { city: values.city, address: values.address } : { city: null, address: null };
 
 /**
  * Правка шлёт только изменённые поля. Без даты и времени момент начала сохраняется,
@@ -56,6 +89,9 @@ function patchOf(values: FormValues, dirty: Partial<Record<keyof FormValues, unk
   if (dirty.date || dirty.time) patch.startsLocal = `${values.date}T${values.time}`;
   if (dirty.timezone) patch.timezone = values.timezone;
   if (dirty.limit) patch.limit = values.limit;
+  // Пара «формат — место» уходит целиком: сервер проверяет её по слитым значениям (D-059).
+  if (dirty.format || dirty.city || dirty.address) Object.assign(patch, { format: values.format }, placeOf(values));
+  if (dirty.category) patch.category = values.category;
   if (dirty.minAge) patch.minAge = values.minAge;
   return patch;
 }
@@ -90,12 +126,21 @@ function EventForm({ loaded }: { loaded?: OrganizerEvent }) {
     resolver: zodResolver(formSchema),
     defaultValues: loaded
       ? valuesOf(loaded)
-      : { title: "", description: "", date: "", time: "19:00", timezone: browserTimezone, minAge: null },
+      : // Формат и категория без значения по умолчанию: организатор выбирает их сам (D-059), возраст — 0+ (D-060).
+        { title: "", description: "", date: "", time: "19:00", timezone: browserTimezone, city: "", address: "", minAge: 0 },
   });
+
+  /** `400 validation_failed` по городу или адресу (правка меняет формат, не присылая место) — под полями формы (D-059). */
+  const showPlaceIssues = (error: unknown) => {
+    if (!(error instanceof ApiError) || error.code !== "validation_failed") return;
+    const issues = Array.isArray(error.details.issues) ? (error.details.issues as { path?: unknown }[]) : [];
+    for (const { path } of issues) if (path === "city" || path === "address") form.setError(path, { type: "server" });
+  };
 
   const create = useMutation({
     mutationFn: ({ date, time, ...rest }: FormValues) =>
-      api(client.api.organizer.events.$post({ json: { ...rest, startsLocal: `${date}T${time}` } })),
+      api(client.api.organizer.events.$post({ json: { ...rest, ...placeOf(rest), startsLocal: `${date}T${time}` } })),
+    onError: showPlaceIssues,
     onSuccess: ({ event }) => {
       queryClient.invalidateQueries({ queryKey: myEventsKey });
       navigate(`/organizer/events/${event.id}`);
@@ -115,7 +160,10 @@ function EventForm({ loaded }: { loaded?: OrganizerEvent }) {
       setToast(rescheduled ? "Событие перенесено — участникам ушли письма" : "Изменения сохранены");
     },
     // Событие могло начаться, пока форма была открыта: перечитанное событие заблокирует дату и лимит (D-033).
-    onError: () => queryClient.invalidateQueries({ queryKey: eventKey(loaded!.event.id) }),
+    onError: (error) => {
+      showPlaceIssues(error);
+      queryClient.invalidateQueries({ queryKey: eventKey(loaded!.event.id) });
+    },
   });
   const remove = useMutation({
     mutationFn: () => api(client.api.organizer.events[":id"].$delete({ param: { id: loaded!.event.id } })),
@@ -130,9 +178,9 @@ function EventForm({ loaded }: { loaded?: OrganizerEvent }) {
   const saving = create.isPending || update.isPending;
   const saveError = create.error ?? update.error;
 
-  const [title, date, time, timezone, minAge] = useWatch({
+  const [title, date, time, timezone, minAge, format] = useWatch({
     control: form.control,
-    name: ["title", "date", "time", "timezone", "minAge"],
+    name: ["title", "date", "time", "timezone", "minAge", "format"],
   });
   const { errors, dirtyFields } = form.formState;
   const keepsMoment = loaded && !dirtyFields.date && !dirtyFields.time;
@@ -225,6 +273,65 @@ function EventForm({ loaded }: { loaded?: OrganizerEvent }) {
             />
             {field("description").error}
           </div>
+          <fieldset
+            className={`${field("format").className} field--group`}
+            aria-describedby={errors.format ? "event-format-error" : undefined}
+          >
+            <legend className="field__label">Формат</legend>
+            <div className="radio-group">
+              <label className="radio-group__option">
+                <input type="radio" value="offline" {...form.register("format")} />
+                Офлайн
+              </label>
+              <label className="radio-group__option">
+                <input type="radio" value="online" {...form.register("format")} />
+                Онлайн
+              </label>
+            </div>
+            {field("format").error}
+          </fieldset>
+          {format === "offline" && (
+            <div className="form-row">
+              <div className={field("city").className}>
+                <label className="field__label" htmlFor="event-city">
+                  Город
+                </label>
+                <input className="field__control" id="event-city" type="text" {...field("city").aria} {...form.register("city")} />
+                {field("city").error}
+              </div>
+              <div className={field("address").className}>
+                <label className="field__label" htmlFor="event-address">
+                  Адрес
+                </label>
+                <input
+                  className="field__control"
+                  id="event-address"
+                  type="text"
+                  placeholder="ул. Ленина, 12"
+                  {...field("address").aria}
+                  {...form.register("address")}
+                />
+                {field("address").error}
+              </div>
+            </div>
+          )}
+          <div className={field("category").className}>
+            <label className="field__label" htmlFor="event-category">
+              Категория
+            </label>
+            <div className="select">
+              <select className="field__control" id="event-category" {...field("category").aria} {...form.register("category")}>
+                <option value="">Выберите категорию</option>
+                {EVENT_CATEGORIES.map((c) => (
+                  <option key={c} value={c}>
+                    {categoryLabel[c]}
+                  </option>
+                ))}
+              </select>
+              <Icon name="chevronDown" className="select__icon" />
+            </div>
+            {field("category").error}
+          </div>
           <div className="form-row">
             <div className={field("date").className}>
               <label className="field__label" htmlFor="event-date">
@@ -308,18 +415,24 @@ function EventForm({ loaded }: { loaded?: OrganizerEvent }) {
             </div>
             <div className={field("minAge").className}>
               <label className="field__label" htmlFor="event-min-age">
-                Минимальный возраст <span className="field__optional">· необязательно</span>
+                Возрастное ограничение
               </label>
-              <input
-                className="field__control"
-                id="event-min-age"
-                type="number"
-                inputMode="numeric"
-                placeholder="18"
-                aria-describedby={errors.minAge ? "event-minAge-error" : "event-min-age-hint"}
-                aria-invalid={Boolean(errors.minAge)}
-                {...form.register("minAge", { setValueAs: (v: string) => (v === "" || v === null ? null : Number(v)) })}
-              />
+              <div className="select">
+                <select
+                  className="field__control"
+                  id="event-min-age"
+                  aria-describedby={errors.minAge ? "event-minAge-error" : "event-min-age-hint"}
+                  aria-invalid={Boolean(errors.minAge)}
+                  {...form.register("minAge", { valueAsNumber: true })}
+                >
+                  {AGE_RATINGS.map((age) => (
+                    <option key={age} value={age}>
+                      {age}+
+                    </option>
+                  ))}
+                </select>
+                <Icon name="chevronDown" className="select__icon" />
+              </div>
               {field("minAge").error ?? (
                 <p className="field__hint" id="event-min-age-hint">
                   Проверяется на день события
@@ -343,7 +456,7 @@ function EventForm({ loaded }: { loaded?: OrganizerEvent }) {
         </form>
         <aside className="preview" aria-label="Так увидят участники">
           <p className="preview__title">Так увидят участники</p>
-          {minAge ? <span className="badge badge--age">{minAge}+</span> : null}
+          <AgeBadge minAge={minAge ?? 0} />
           <p className="preview__name">{title || "Название события"}</p>
           {previewTime && (
             <p className="event-header__time">

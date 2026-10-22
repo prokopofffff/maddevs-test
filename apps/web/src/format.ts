@@ -1,3 +1,5 @@
+import type { EventCategory, EventFormat } from "@app/api/schemas";
+
 /** «25 октября 2026, 19:00 (UTC+7)» — время в поясе события с подписью смещения (D-015). */
 export function formatEventTime(startsAt: string, timeZone: string) {
   return `${formatWallTime(startsAt, timeZone)} (${utcOffset(startsAt, timeZone)})`;
@@ -57,3 +59,20 @@ export const formatCountdown = (seconds: number) => `${Math.floor(seconds / 60)}
 /** «19:04» — время на часах пояса события. */
 export const formatClock = (at: string, timeZone: string) =>
   new Intl.DateTimeFormat("ru-RU", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(at));
+
+/** Подписи категорий события (D-059). */
+export const categoryLabel: Record<EventCategory, string> = {
+  meetup: "Митап",
+  workshop: "Воркшоп",
+  lecture: "Лекция",
+  conference: "Конференция",
+  game: "Игра",
+  other: "Другое",
+};
+
+/** «Онлайн» или город — короткая подпись места для карточек и списков (D-059). */
+export const placeText = (e: { format: EventFormat; city: string | null }) => (e.format === "online" ? "Онлайн" : (e.city ?? ""));
+
+/** «Онлайн» или «Новосибирск, ул. Ленина, 12» — полное место для страницы события (D-059). */
+export const fullPlace = (e: { format: EventFormat; city: string | null; address: string | null }) =>
+  e.format === "online" ? "Онлайн" : [e.city, e.address].filter(Boolean).join(", ");

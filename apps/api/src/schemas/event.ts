@@ -20,7 +20,7 @@ export const localDateTimeSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d
  * а правке пара проверяется по слитым значениям в `updateEvent` (D-059).
  * У `minAge` нет `.default`: внутри `.partial()` он сбрасывал бы возраст при каждой правке, умолчание 0 ставит маршрут (D-060).
  */
-const eventFieldsSchema = z.object({
+export const eventFieldsSchema = z.object({
   title: z.string().trim().min(1).max(200),
   description: z.string().trim().max(5000),
   startsLocal: localDateTimeSchema,

@@ -3,12 +3,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { api, ApiError, client } from "../api.ts";
+import { AgeBadge } from "../components/AgeBadge.tsx";
 import { ErrorBanner } from "../components/Banner.tsx";
 import { Brand } from "../components/Brand.tsx";
 import { Icon } from "../components/Icon.tsx";
 import { PageSkeleton } from "../components/Skeleton.tsx";
 import { errorText } from "../errors.ts";
-import { formatEventTime, seatsLeft } from "../format.ts";
+import { categoryLabel, formatEventTime, fullPlace, seatsLeft } from "../format.ts";
 import { CodeStep } from "./event/CodeStep.tsx";
 import { LookupForm } from "./event/LookupForm.tsx";
 import { RegistrationForm } from "./event/RegistrationForm.tsx";
@@ -140,15 +141,16 @@ export function PublicEventPage() {
         <>
           <div className="page__main">
             <header className="event-header">
-              {event.data.minAge && (
-                <div className="event-header__badges">
-                  <span className="badge badge--age">{event.data.minAge}+</span>
-                </div>
-              )}
+              <div className="event-header__badges">
+                <AgeBadge minAge={event.data.minAge} />
+              </div>
               <h1 className="heading heading--page">{event.data.title}</h1>
               <p className="event-header__time">
                 <Icon name="calendar" />
                 {formatEventTime(event.data.startsAt, event.data.timezone)}
+              </p>
+              <p className="text-muted">
+                {categoryLabel[event.data.category]} · {fullPlace(event.data)}
               </p>
               {event.data.description && <p style={{ whiteSpace: "pre-line" }}>{event.data.description}</p>}
             </header>

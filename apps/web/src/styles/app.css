@@ -38,3 +38,10 @@ button.back-link { padding: 0; border: 0; background: none; font: inherit; font-
 .support-warning { display: inline-block; margin-top: var(--space-2); white-space: normal; }
 .support-event__title { font-weight: var(--font-weight-semibold); }
 .support-actions { display: flex; gap: var(--space-2); }
+
+/* Радиокнопки «Формат» в форме события: шаблон их не рисует, берём нативные с отступами шаблона (D-059). */
+.field--group { margin: 0; padding: 0; border: 0; }
+.field--group > legend { padding: 0; }
+.radio-group { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-6); }
+.radio-group__option { display: inline-flex; align-items: center; gap: var(--space-2); cursor: pointer; }
+.radio-group__option input { width: 18px; height: 18px; margin: 0; accent-color: var(--color-text); }
