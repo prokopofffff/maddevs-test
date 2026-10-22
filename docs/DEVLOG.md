@@ -894,3 +894,8 @@
   - `pnpm typecheck`, `pnpm lint` чистые; `pnpm test` (с `TEST_DATABASE_URL` на :5433) → 20 файлов, 136 passed.
 - Не проверено: Windows (`shell: true` для `pnpm` есть, но запуск не пробовался).
 - Дальше: PR.
+
+## 2026-10-22 16:59 +0700 — PR «pnpm dev поднимает весь стенд» открыт, CI зелёный
+- Сделано: [PR #89](https://github.com/prokopofffff/maddevs-test/pull/89) — D-054, D-055. Отдельного тикета нет, запрос пришёл от пользователя напрямую.
+- Проверка: CI runs 39759197121 и 39759231342 на `12b4ff0`: `check` → pass, `e2e` → pass.
+- Дальше: ревью PR.
