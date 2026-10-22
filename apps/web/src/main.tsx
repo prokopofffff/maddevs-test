@@ -18,6 +18,7 @@ import { CheckinPage } from "./pages/CheckinPage.tsx";
 import { EventAdminPage } from "./pages/EventAdminPage.tsx";
 import { EventFormPage } from "./pages/EventFormPage.tsx";
 import { MyEventsPage } from "./pages/MyEventsPage.tsx";
+import { MyRegistrationsPage } from "./pages/MyRegistrationsPage.tsx";
 import { MyRegistrationPage } from "./pages/MyRegistrationPage.tsx";
 import { NotFoundPage } from "./pages/NotFoundPage.tsx";
 import { PublicEventPage } from "./pages/PublicEventPage.tsx";
@@ -40,6 +41,7 @@ const router = createBrowserRouter([
   { path: "/signup", element: <AuthPage mode="signup" key="signup" /> },
   { path: "/e/:eventId", element: <PublicEventPage /> },
   { path: "/r/:token", element: <MyRegistrationPage /> },
+  { path: "/me", element: <MyRegistrationsPage /> },
   {
     path: "/organizer",
     element: <AccountLayout role="organizer" />,

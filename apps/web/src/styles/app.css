@@ -100,3 +100,11 @@ button.back-link { padding: 0; border: 0; background: none; font: inherit; font-
 .event-card__title { font-size: var(--font-size-xl); font-weight: var(--font-weight-black); line-height: 1.15; letter-spacing: -0.03em; }
 .event-card__time { color: var(--color-text-muted); font-size: var(--font-size-sm); }
 .event-card__badges { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: auto; padding-top: var(--space-2); }
+
+/* «Мои регистрации» (D-057): вкладки — кнопки, шаблонные `.tabs__link` рассчитаны на ссылки с `aria-current`. */
+button.tabs__link { background: none; font: inherit; font-weight: var(--font-weight-semibold); cursor: pointer; }
+.tabs__link[aria-selected="true"] { border-color: var(--color-text); background: var(--color-accent); font-weight: var(--font-weight-bold); }
+/* Строка регистрации — не ссылка целиком: растяжка и подсветка названия из `.event-item` здесь не нужны, ссылка — «Открыть». */
+.reg-item .event-item__title::after { content: none; }
+.reg-item:hover .event-item__title { background: none; }
+.event-item.reg-item { grid-template-columns: minmax(0, 1fr) auto; }
