@@ -12,7 +12,9 @@
     "test": "vitest run",
     "typecheck": "tsc -p .",
     "db:generate": "drizzle-kit generate",
-    "admin:create": "tsx src/scripts/admin-create.ts"
+    "admin:create": "tsx src/scripts/admin-create.ts",
+    "db:seed": "tsx src/scripts/db-seed.ts",
+    "db:reset": "tsx src/scripts/db-reset.ts"
   },
   "dependencies": {
     "@date-fns/tz": "^1.5.0",
