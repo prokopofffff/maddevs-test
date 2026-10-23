@@ -52,3 +52,13 @@ export async function rewind({ email, eventId }: { email?: string; eventId?: str
     await sql.end();
   }
 }
+
+/** Профиль удалён из базы, пока страница события открыта: так в тесте воспроизводится `409 profile_required` (D-065). */
+export async function dropProfile(email: string) {
+  const sql = postgres(databaseUrl, { max: 1, onnotice: () => {} });
+  try {
+    await sql`delete from participant_profiles where email = ${email}`;
+  } finally {
+    await sql.end();
+  }
+}

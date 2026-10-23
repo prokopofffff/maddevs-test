@@ -13,6 +13,7 @@ import { categoryLabel, formatEventTime, fullPlace, seatsLeft } from "../format.
 import { participantKey, participantRegistrationsKey, useParticipant } from "../participant.ts";
 import { CodeStep } from "./event/CodeStep.tsx";
 import { LookupForm } from "./event/LookupForm.tsx";
+import { OneClickRegistration } from "./event/OneClickRegistration.tsx";
 import { RegistrationForm } from "./event/RegistrationForm.tsx";
 import { RegistrationResult } from "./event/RegistrationResult.tsx";
 import { NotFoundPage } from "./NotFoundPage.tsx";
@@ -27,8 +28,8 @@ const isCode = (error: unknown, code: string): error is ApiError => error instan
 /**
  * Страница события по ссылке: S1-Event (описание, свободные места, форма) → S2-Code (ввод кода) → S3-Result.
  * «Уже регистрировались?» ведёт через тот же ввод кода сразу на `/r/:token` (D-039).
- * Вошедший участник (D-057) регистрируется без кода одной кнопкой (D-058), а если уже зарегистрирован — видит ссылку
- * на свою регистрацию; «Уже регистрировались?» ему не нужно.
+ * Вошедший участник (D-057) регистрируется без кода: с профилем (D-065) одной кнопкой, без профиля — формой, которая
+ * заодно создаёт профиль. Если уже зарегистрирован — видит ссылку на свою регистрацию; «Уже регистрировались?» ему не нужно.
  */
 export function PublicEventPage() {
   const { eventId = "" } = useParams();
@@ -94,15 +95,20 @@ export function PublicEventPage() {
     },
   });
   const registerSignedIn = useMutation({
-    mutationFn: (input: ParticipantData) =>
-      api(client.api.events[":id"].registrations.$post({ param: { id: eventId }, json: input })),
+    // Без данных — «в один клик» по профилю: пустое тело, данные берёт сервер (D-065).
+    mutationFn: (input?: ParticipantData) =>
+      api(client.api.events[":id"].registrations.$post({ param: { id: eventId }, json: input ?? {} })),
     onSuccess: (res) => {
       setStep({ name: "result", result: res.result, token: res.token });
       void queryClient.invalidateQueries({ queryKey: eventKey });
       void queryClient.invalidateQueries({ queryKey: participantRegistrationsKey });
+      // Регистрация с данными формы создала профиль, а `lastData` стал новее.
+      void queryClient.invalidateQueries({ queryKey: participantKey });
     },
     onError: (error) => {
       onClosed(error);
+      // Профиль пропал, пока страница была открыта: перечитываем участника, страница покажет форму с данными.
+      if (isCode(error, "profile_required")) void queryClient.invalidateQueries({ queryKey: participantKey });
       // Сессия истекла, пока человек заполнял форму: страница возвращается к гостевой.
       if (isCode(error, "unauthorized")) queryClient.setQueryData(participantKey, null);
     },
@@ -213,7 +219,15 @@ export function PublicEventPage() {
                         Мест нет — вы встанете в лист ожидания
                       </p>
                     )}
-                    {signedIn ? (
+                    {signedIn?.profile ? (
+                      <OneClickRegistration
+                        profile={signedIn.profile}
+                        event={event.data}
+                        pending={registerSignedIn.isPending}
+                        error={registerSignedIn.error}
+                        onRegister={() => registerSignedIn.mutate(undefined)}
+                      />
+                    ) : signedIn ? (
                       <RegistrationForm
                         lockedEmail={signedIn.email}
                         initial={signedIn.lastData ?? undefined}

@@ -65,7 +65,7 @@ export function ParticipantLogin() {
         queryClient.setQueryData(participantKey, await api(client.api.participant.me.$get()));
       } catch {
         // Не вышло — входим без предзаполнения: профиль подтянет обычный запрос.
-        queryClient.setQueryData(participantKey, { email: confirmed, lastData: null });
+        queryClient.setQueryData(participantKey, { email: confirmed, profile: null, lastData: null });
       }
       // Регистрации прежнего пользователя (если был) протухли; сам `participantKey` свежий.
       void queryClient.invalidateQueries({ queryKey: participantRegistrationsKey });

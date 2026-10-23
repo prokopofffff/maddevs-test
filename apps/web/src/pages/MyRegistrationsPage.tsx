@@ -1,19 +1,22 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Link } from "react-router";
 import { ErrorBanner } from "../components/Banner.tsx";
 import { Icon } from "../components/Icon.tsx";
 import { PublicHeader } from "../components/PublicHeader.tsx";
 import { PageSkeleton } from "../components/Skeleton.tsx";
+import { Toast } from "../components/Toast.tsx";
 import { errorText } from "../errors.ts";
 import { useParticipant, useParticipantRegistrations } from "../participant.ts";
 import { ParticipantLogin } from "./me/ParticipantLogin.tsx";
+import { ProfileBlock } from "./me/ProfileBlock.tsx";
+import { ProfileEditor, type SavedProfile } from "./me/ProfileEditor.tsx";
 import { isCurrent, RegistrationRow } from "./me/RegistrationRow.tsx";
 
 type Tab = "current" | "past";
 
 /**
  * `/me` — «Мои регистрации» (дизайн §8.3, D-057). Без сессии участника — форма входа по коду на этой же странице.
- * С сессией — две вкладки: текущие по возрастанию начала, прошедшие и отменённые по убыванию.
+ * С сессией без профиля — первая форма «Расскажите о себе» (D-065); с профилем — блок профиля и две вкладки: текущие по возрастанию начала, прошедшие и отменённые по убыванию.
  */
 export function MyRegistrationsPage() {
   const participant = useParticipant();
@@ -35,12 +38,21 @@ export function MyRegistrationsPage() {
       </>
     );
   }
-  return participant.data ? <Registrations /> : <ParticipantLogin />;
+  return participant.data ? <Registrations participant={participant.data} /> : <ParticipantLogin />;
 }
 
-function Registrations() {
+type Participant = NonNullable<ReturnType<typeof useParticipant>["data"]>;
+
+function Registrations({ participant }: { participant: Participant }) {
   const registrations = useParticipantRegistrations(true);
+  const hasProfile = participant.profile !== null;
   const [tab, setTab] = useState<Tab>("current");
+  const [toast, setToast] = useState<string | null>(null);
+  const hideToast = useCallback(() => setToast(null), []);
+  // Правка профиля отменила регистрации с неподходящим возрастом (D-065): сообщаем, какие именно.
+  const onSaved = ({ cancelled }: SavedProfile) => {
+    if (cancelled.length > 0) setToast(`Отменены регистрации: ${cancelled.map((c) => c.title).join(", ")}`);
+  };
 
   const all = registrations.data ?? [];
   // С сервера — по возрастанию начала; прошедшие переворачиваем.
@@ -53,11 +65,22 @@ function Registrations() {
       <PublicHeader />
       <div className="page page--narrow">
         <h1 className="heading heading--page">Мои регистрации</h1>
-        {registrations.isPending && <PageSkeleton label="Загрузка регистраций" />}
-        {registrations.isError && (
+        {participant.profile ? (
+          <ProfileBlock profile={participant.profile} onSaved={onSaved} />
+        ) : (
+          <section className="panel profile" aria-label="Профиль">
+            <h2 className="heading heading--section">Расскажите о себе</h2>
+            <p className="text-muted">
+              Эти данные подставятся в регистрацию — на событие можно будет записаться одной кнопкой.
+            </p>
+            <ProfileEditor initial={participant.lastData ?? undefined} submitLabel="Сохранить" onSaved={onSaved} />
+          </section>
+        )}
+        {hasProfile && registrations.isPending && <PageSkeleton label="Загрузка регистраций" />}
+        {hasProfile && registrations.isError && (
           <ErrorBanner title="Не удалось загрузить регистрации">{errorText(registrations.error)}</ErrorBanner>
         )}
-        {registrations.data && all.length === 0 && (
+        {hasProfile && registrations.data && all.length === 0 && (
           <div className="empty-state">
             <span className="empty-state__icon">
               <Icon name="calendar" />
@@ -68,7 +91,7 @@ function Registrations() {
             </Link>
           </div>
         )}
-        {registrations.data && all.length > 0 && (
+        {hasProfile && registrations.data && all.length > 0 && (
           <>
             <div className="tabs" role="tablist" aria-label="Регистрации">
               <button
@@ -102,6 +125,7 @@ function Registrations() {
           </>
         )}
       </div>
+      {toast && <Toast message={toast} onDone={hideToast} />}
     </>
   );
 }

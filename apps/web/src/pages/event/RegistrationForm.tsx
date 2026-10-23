@@ -15,7 +15,7 @@ import { todayIso } from "../../format.ts";
 
 const empty: FormData = { firstName: "", lastName: "", birthDate: "", email: "" };
 
-const hints: Record<keyof FormData, string> = {
+export const hints: Record<keyof FormData, string> = {
   firstName: "Введите имя",
   lastName: "Введите фамилию",
   birthDate: "Укажите дату рождения",
@@ -23,7 +23,7 @@ const hints: Record<keyof FormData, string> = {
 };
 
 /** Ошибка сервера, относящаяся к конкретному полю, — под полем; остальные — баннером. */
-function fieldError(error: unknown): { field: keyof FormData; text: string } | undefined {
+export function fieldError(error: unknown): { field: keyof FormData; text: string } | undefined {
   if (!(error instanceof ApiError)) return;
   if (error.code === "below_min_age") {
     return { field: "birthDate", text: `Регистрация с ${error.details.minAge} лет на день события` };
@@ -34,7 +34,7 @@ function fieldError(error: unknown): { field: keyof FormData; text: string } | u
   }
 }
 
-function FieldError({ id, children }: { id: string; children: React.ReactNode }) {
+export function FieldError({ id, children }: { id: string; children: React.ReactNode }) {
   return (
     <p className="field__error" id={id}>
       <Icon name="info" />

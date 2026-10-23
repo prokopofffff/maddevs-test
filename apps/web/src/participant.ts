@@ -5,7 +5,7 @@ export const participantKey = ["participant"] as const;
 /** Дочерний ключ: вход и выход сбрасывают его вместе с `participantKey` (D-057). */
 export const participantRegistrationsKey = [...participantKey, "registrations"] as const;
 
-/** Участник по cookie `psid` (D-057): `{ email, lastData }` или `null`, если сессии нет. Как `useMe` для организатора. */
+/** Участник по cookie `psid` (D-057): `{ email, profile, lastData }` или `null`, если сессии нет. Как `useMe` для организатора. */
 export function useParticipant() {
   return useQuery({
     queryKey: participantKey,

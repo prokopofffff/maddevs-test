@@ -48,7 +48,7 @@ test("каталог → вход участника по коду → реги�
   await expect(row).toBeVisible();
   await expect(row.getByText(/^Место ваше/)).toBeVisible();
 
-  // Вернувшийся участник в чистом браузере входит по ссылке другого события: форма уже предзаполнена из `lastData`.
+  // Вернувшийся участник в чистом браузере входит по ссылке другого события: данные уже в профиле.
   const other = await createEvent(request, { title: `${title} 2`, city, category: "lecture", minAge: 0 });
   await rewind({ email }); // новый код входа тому же адресу раньше минуты не выдаётся
   const fresh = await browser.newContext();
@@ -62,8 +62,10 @@ test("каталог → вход участника по коду → реги�
   await again.getByLabel("Код из письма").fill(await codeFromMail(email, 2, "Код для входа"));
   await again.getByRole("button", { name: "Подтвердить" }).click();
   await expect(again).toHaveURL(`/e/${other}`);
-  await expect(again.getByLabel("Имя")).toHaveValue("Анна");
-  await expect(again.getByLabel("Фамилия")).toHaveValue("Иванова");
-  await expect(again.getByLabel("Дата рождения")).toHaveValue("1994-03-14");
+  // Первая регистрация с данными формы создала профиль (D-065): вместо формы — строка профиля и одна кнопка.
+  await expect(again.getByText("Регистрируем: Анна Иванова, 14 марта 1994")).toBeVisible();
+  await expect(again.getByLabel("Имя")).toHaveCount(0);
+  await again.getByRole("button", { name: "Зарегистрироваться" }).click();
+  await expect(again.getByRole("heading", { name: "Место ваше" })).toBeVisible();
   await fresh.close();
 });

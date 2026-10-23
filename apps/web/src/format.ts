@@ -47,6 +47,32 @@ export function seatsLeft(n: number) {
 /** «14.03.1994» из `1994-03-14`. */
 export const formatDate = (isoDate: string) => isoDate.split("-").reverse().join(".");
 
+/** «14 марта 1994» из `1994-03-14` — дата рождения в профиле. */
+export function formatBirthDate(isoDate: string) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("ru-RU", { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" })
+      .formatToParts(new Date(`${isoDate}T00:00:00Z`))
+      .map((p) => [p.type, p.value]),
+  );
+  return `${parts.day} ${parts.month} ${parts.year}`;
+}
+
+/**
+ * Полные годы на календарную дату начала события в его поясе — то же правило, что у сервера (D-008).
+ * Нужно кнопке «в один клик» (D-065), чтобы не звать сервер за отказом, который видно заранее.
+ */
+export function ageOnEventDay(birthDate: string, event: { startsAt: string; timezone: string }) {
+  // `en-CA` даёт `YYYY-MM-DD`; сравнение `MM-DD` строкой, как на сервере.
+  const eventDay = new Intl.DateTimeFormat("en-CA", {
+    timeZone: event.timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(event.startsAt));
+  const years = Number(eventDay.slice(0, 4)) - Number(birthDate.slice(0, 4));
+  return eventDay.slice(5) < birthDate.slice(5) ? years - 1 : years;
+}
+
 /** Сегодняшняя дата `YYYY-MM-DD` по часам браузера — для `max` у поля даты рождения. */
 export function todayIso() {
   const d = new Date();

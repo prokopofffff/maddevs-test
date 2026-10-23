@@ -146,3 +146,17 @@ button.tabs__link { background: none; font: inherit; font-weight: var(--font-wei
 .reg-item .event-item__title::after { content: none; }
 .reg-item:hover .event-item__title { background: none; }
 .event-item.reg-item { grid-template-columns: minmax(0, 1fr) auto; }
+
+/* Профиль участника (D-065): блок над вкладками `/me` и форма «Расскажите о себе». */
+.profile { gap: var(--space-4); }
+.profile--view { flex-direction: row; align-items: center; justify-content: space-between; gap: var(--space-4); padding-block: var(--space-4); }
+.profile__summary { min-width: 0; overflow-wrap: anywhere; }
+.profile__name { font-weight: var(--font-weight-bold); }
+.profile__birth { color: var(--color-text-muted); }
+.profile__actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+/* Регистрация одной кнопкой (D-065). */
+.one-click { display: flex; flex-direction: column; gap: var(--space-3); }
+/* Перечень событий в диалоге отмены регистраций при смене даты рождения. */
+.dialog__list { display: flex; flex-direction: column; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.dialog__list li { display: flex; flex-direction: column; font-size: var(--font-size-sm); }
+.dialog__list-title { font-weight: var(--font-weight-bold); }
