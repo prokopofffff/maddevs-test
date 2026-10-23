@@ -1,4 +1,4 @@
-import { and, eq, gt, inArray, lte, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, lte, sql } from "drizzle-orm";
 import type { Db } from "../db/client.ts";
 import { emailOutbox, events, registrations } from "../db/schema.ts";
 import { withTx } from "../db/tx.ts";
@@ -16,11 +16,13 @@ const DAY_MS = 24 * 60 * 60_000;
 export async function sweepReminders(db: Db, { now, publicUrl }: MailContext) {
   return withTx(db, async (tx) => {
     // FOR SHARE ждёт идущие регистрацию, отказ с повышением и перенос этих событий (D-011, D-016):
-    // следующий запрос в READ COMMITTED видит их результат целиком.
+    // следующий запрос в READ COMMITTED видит их результат целиком. Строки берутся по возрастанию id, как у
+    // любой другой транзакции с несколькими событиями (правка профиля, D-065): иначе дедлок.
     const due = await tx
       .select({ id: events.id })
       .from(events)
       .where(and(gt(events.startsAt, now), lte(events.startsAt, new Date(now.getTime() + DAY_MS))))
+      .orderBy(asc(events.id))
       .for("share");
     if (due.length === 0) return 0;
 

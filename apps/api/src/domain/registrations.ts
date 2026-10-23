@@ -12,7 +12,7 @@ import { ageOnEventDay, belowMinAge, isFutureDate } from "./age.ts";
 import { newRegistrationToken, newTicketCode } from "./codes.ts";
 import { withdrawPending } from "./corrections.ts";
 import { countsFor, lockEvent, started, type EventRow } from "./events.ts";
-import { createProfileIfMissing, getProfile } from "./profile.ts";
+import { createProfileIfMissing, getProfileShared, ProfileRollback } from "./profile.ts";
 
 export type RegistrationRow = typeof registrations.$inferSelect;
 export type Verification = typeof emailVerifications.$inferSelect;
@@ -222,30 +222,41 @@ export type AllocateResult = Awaited<ReturnType<typeof allocate>>;
  * Данные берутся из тела или, если тело пустое (`data = null`), из профиля — «в один клик» (D-065); нет ни того ни другого —
  * `profile_required`. Порядок проверок как у выдачи кода (SPEC, раздел 4): начало, будущая дата, возраст; сами проверки —
  * под блокировкой события и тем же `allocate`, что у регистрации по коду, так что последнее место делится честно.
- * Данные из тела создают профиль, если его ещё нет, в той же транзакции и только когда проверки пройдены.
+ *
+ * Порядок блокировок «профиль → событие» (D-065): профиль читается `FOR SHARE` до `lockEvent` и держится до конца
+ * транзакции, чтобы правка профиля не прошла между чтением и вставкой. Данные из тела, если профиля ещё нет, создают его
+ * тоже до блокировки события; при любом исходе кроме новой регистрации транзакция откатывается вместе с ним.
  */
 export async function registerSignedIn(db: Db, eventId: string, email: string, data: ParticipantData | null, ctx: MailContext) {
-  return withTx(
-    db,
-    async (
-      tx,
-    ): Promise<
-      AllocateResult | { error: "not_found" | "birth_date_in_future" | "profile_required" } | { error: "below_min_age"; minAge: number }
-    > => {
+  type Result =
+    | AllocateResult
+    | { error: "not_found" | "birth_date_in_future" | "profile_required" }
+    | { error: "below_min_age"; minAge: number };
+  try {
+    return await withTx(db, async (tx): Promise<Result> => {
+      const profile = await getProfileShared(tx, email);
+      const createdProfile = !profile && data !== null && (await createProfileIfMissing(tx, email, data, ctx.now));
+      /** Результат без регистрации не оставляет и созданный профиль. */
+      const refuse = (result: Result): Result => {
+        if (createdProfile) throw new ProfileRollback(result);
+        return result;
+      };
+
       const event = await lockEvent(tx, eventId);
-      if (!event) return { error: "not_found" };
+      if (!event) return refuse({ error: "not_found" });
       if (started(event, ctx.now)) throw new DomainError("registration_closed");
-      const profile = await getProfile(tx, email);
       const applicant = data ?? profile;
-      if (!applicant) return { error: "profile_required" };
-      if (isFutureDate(applicant.birthDate, ctx.now)) return { error: "birth_date_in_future" };
-      if (belowMinAge(applicant.birthDate, event)) return { error: "below_min_age", minAge: event.minAge };
+      if (!applicant) return refuse({ error: "profile_required" });
+      if (isFutureDate(applicant.birthDate, ctx.now)) return refuse({ error: "birth_date_in_future" });
+      if (belowMinAge(applicant.birthDate, event)) return refuse({ error: "below_min_age", minAge: event.minAge });
       const allocated = await allocate(tx, event, { email, ...applicant }, ctx);
       // Повтор («existing») данных формы не применяет (D-007), значит и профиль из них не берёт.
-      if (!profile && data && allocated.result !== "existing") await createProfileIfMissing(tx, email, data, ctx.now);
-      return allocated;
-    },
-  );
+      return allocated.result === "existing" ? refuse(allocated) : allocated;
+    });
+  } catch (error) {
+    if (error instanceof ProfileRollback) return error.result as Result;
+    throw error;
+  }
 }
 
 /**

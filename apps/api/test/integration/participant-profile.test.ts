@@ -250,6 +250,24 @@ describe("Правка профиля переносится в регистра
   });
 });
 
+describe("Заявки на исправление при правке профиля (D-065)", () => {
+  it("профиль сохранён с теми же значениями, что в регистрации: заявка с другими значениями всё равно снята", async () => {
+    const t = testApp();
+    const { eventId } = await createEvent(t, DECEMBER);
+    const { token } = (await register(t, eventId, participant({ email: EMAIL }))).body;
+    await submitCorrection(t.client(), token, { firstName: "Анна", lastName: "Сидорова", birthDate: "1994-03-14" });
+    const support = await signInSupport(t);
+    expect(await queue(support)).toHaveLength(1);
+    const browser = await signInParticipant(t, EMAIL);
+
+    const res = await putProfile(browser, profile);
+
+    expect(res.body).toMatchObject({ updated: 0, cancelled: [] });
+    expect(await queue(support)).toHaveLength(0);
+    expect((await t.client().get(`/api/registrations/${token}`)).body).toMatchObject(profile);
+  });
+});
+
 describe("Конфликт возраста при правке профиля (D-065)", () => {
   /** Анна 1994 г. р. записана на 18+ (лимит 1) и на событие без ограничения; Борис в листе ожидания 18+. */
   async function adultSetup(t: TestApp) {
@@ -354,6 +372,21 @@ describe("Конфликт возраста при правке профиля (
     expect(await queue(support)).toHaveLength(0);
   });
 
+  it("возраст не менялся: организатор поднял minAge после регистрации, правка имени → 200, регистрация сохранена и переименована (D-017)", async () => {
+    const t = testApp();
+    const { eventId, organizer } = await createEvent(t, DECEMBER);
+    await register(t, eventId, participant({ email: EMAIL, birthDate: "2010-01-01" }));
+    const raised = await organizer.patch(`/api/organizer/events/${eventId}`, { minAge: 18 });
+    expect(raised.status).toBe(200);
+    const browser = await signInParticipant(t, EMAIL);
+
+    const res = await putProfile(browser, { firstName: "Мария", lastName: "Иванова", birthDate: "2010-01-01" });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ updated: 1, cancelled: [] });
+    expect(await listed(organizer, eventId)).toMatchObject([{ firstName: "Мария", birthDate: "2010-01-01", status: "confirmed" }]);
+  });
+
   it("событие, на которое возраст не проходит, но оно уже началось, конфликтом не считается", async () => {
     const t = testApp();
     const { eventId, organizer } = await createEvent(t, { minAge: 18 });
@@ -385,5 +418,47 @@ describe("Параллельные правки (D-065, D-011)", () => {
     const final = (await browser.get("/api/participant/me")).body.profile;
     expect([a, b]).toContainEqual(final);
     for (const { eventId, organizer } of events) expect(await listed(organizer, eventId)).toMatchObject([{ ...final }]);
+  });
+});
+
+describe("Порядок блокировок «профиль → события» (D-065, D-011)", () => {
+  it("правка профиля и регистрация в один клик на новое событие: регистрация всегда с итоговыми данными профиля", async () => {
+    const t = testApp();
+    const browser = await withProfile(t);
+    const next = { firstName: "Мария", lastName: "Петрова", birthDate: "1991-05-05" };
+    const targets = await Promise.all([1, 2, 3, 4].map(() => createEvent(t, DECEMBER)));
+
+    for (const { eventId } of targets) {
+      const [saved, registered] = await Promise.all([putProfile(browser, next), oneClick(browser, eventId, {})]);
+      expect([saved.status, registered.status]).toEqual([200, 200]);
+      // Либо регистрация прочитала новый профиль, либо правка уже видела её и переписала.
+      expect(await listed(targets.find((x) => x.eventId === eventId)!.organizer, eventId)).toMatchObject([next]);
+      await putProfile(browser, profile);
+    }
+  });
+
+  it("регистрация с данными в теле создаёт профиль до блокировки события; при отказе профиль не остаётся", async () => {
+    const t = testApp();
+    const { eventId } = await createEvent(t, { minAge: 18 });
+    const browser = await signInParticipant(t, EMAIL);
+
+    expect((await oneClick(browser, eventId, { ...profile, birthDate: "2015-01-01" })).status).toBe(422);
+    expect((await browser.get("/api/participant/me")).body.profile).toBeNull();
+
+    // Параллельно: первое сохранение профиля и первая регистрация с данными в теле не уходят в дедлок.
+    const open = await createEvent(t, DECEMBER);
+    const results = await Promise.all([putProfile(browser), oneClick(browser, open.eventId, profile)]);
+    expect(results.map((r) => r.status)).toEqual([200, 200]);
+    expect((await browser.get("/api/participant/me")).body.profile).toEqual(profile);
+  });
+
+  it("проход напоминаний берёт события под FOR SHARE по возрастанию id", async () => {
+    const queries: string[] = [];
+    const t = testApp({ now: "2026-11-19T20:00:00Z", queries });
+    await createEvent(t);
+
+    await t.sweepReminders(t.clock.now());
+
+    expect(queries).toContainEqual(expect.stringMatching(/ from "events" where .* order by "events"\."id" asc for share$/));
   });
 });
