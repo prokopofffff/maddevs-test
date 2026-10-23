@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formatBirthDate } from "../../format.ts";
 import { ProfileEditor, type SavedProfile } from "./ProfileEditor.tsx";
 
@@ -10,6 +10,14 @@ type Profile = { firstName: string; lastName: string; birthDate: string };
  */
 export function ProfileBlock({ profile, onSaved }: { profile: Profile; onSaved: (saved: SavedProfile) => void }) {
   const [editing, setEditing] = useState(false);
+  const editButton = useRef<HTMLButtonElement>(null);
+  const wasEditing = useRef(false);
+
+  // Форма закрылась (сохранили или отменили) — её кнопка исчезла вместе с фокусом: возвращаем его на «Изменить».
+  useEffect(() => {
+    if (wasEditing.current && !editing) editButton.current?.focus();
+    wasEditing.current = editing;
+  }, [editing]);
 
   if (editing) {
     return (
@@ -35,7 +43,7 @@ export function ProfileBlock({ profile, onSaved }: { profile: Profile; onSaved: 
         </span>
         <span className="profile__birth"> · {formatBirthDate(profile.birthDate)}</span>
       </p>
-      <button className="button button--secondary button--sm" type="button" onClick={() => setEditing(true)}>
+      <button ref={editButton} className="button button--secondary button--sm" type="button" onClick={() => setEditing(true)}>
         Изменить
       </button>
     </section>

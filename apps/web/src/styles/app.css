@@ -160,3 +160,4 @@ button.tabs__link { background: none; font: inherit; font-weight: var(--font-wei
 .dialog__list { display: flex; flex-direction: column; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
 .dialog__list li { display: flex; flex-direction: column; font-size: var(--font-size-sm); }
 .dialog__list-title { font-weight: var(--font-weight-bold); }
+.dialog__body { display: flex; flex-direction: column; gap: var(--space-4); }

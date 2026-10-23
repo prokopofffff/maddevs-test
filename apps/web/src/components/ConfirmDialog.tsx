@@ -45,10 +45,11 @@ export function ConfirmDialog({ title, text, confirmLabel, cancelLabel, pending,
         <h2 className="dialog__title" id={`${id}-title`}>
           {title}
         </h2>
-        <p className="dialog__text" id={`${id}-text`}>
-          {text}
-        </p>
-        {children}
+        {/* Текст и перечень внутри одного описания: скринридер читает и список затронутого. */}
+        <div className="dialog__body" id={`${id}-text`}>
+          <p className="dialog__text">{text}</p>
+          {children}
+        </div>
         {error && <ErrorBanner>{error}</ErrorBanner>}
         <div className="dialog__actions">
           <button className="button button--danger" type="button" disabled={pending} onClick={onConfirm}>

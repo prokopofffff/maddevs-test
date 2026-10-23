@@ -63,11 +63,14 @@ test("профиль: первое заполнение → регистраци
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText(`${adult.title} — с 18 лет`);
   await expect(dialog).not.toContainText(open.title);
+  // Перечень событий входит в описание диалога: скринридер читает его вместе с текстом.
+  await expect(dialog).toHaveAccessibleDescription(new RegExp(`${adult.title} — с 18 лет`));
   // @shot conflict-dialog
   await dialog.getByRole("button", { name: "Не сохранять" }).click();
   await expect(dialog).toHaveCount(0);
   await page.getByRole("button", { name: "Отмена" }).click();
   await expect(profile).toContainText("Анна Иванова · 14 марта 1994");
+  await expect(profile.getByRole("button", { name: "Изменить" })).toBeFocused();
   await expect(page.getByRole("listitem").filter({ hasText: adult.title })).toContainText("Место ваше");
 
   // Повторяем и подтверждаем: регистрация 18+ отменена, открытая осталась, профиль новый.
@@ -79,6 +82,8 @@ test("профиль: первое заполнение → регистраци
   await expect(dialog).toHaveCount(0);
   await expect(page.getByText(`Отменены регистрации: ${adult.title}`)).toBeVisible();
   await expect(profile).toContainText("Аня Иванова · 5 мая 2010");
+  // Форма закрылась, фокус не теряется на `body`.
+  await expect(profile.getByRole("button", { name: "Изменить" })).toBeFocused();
   await expect(page.getByRole("listitem").filter({ hasText: open.title })).toContainText("Место ваше");
   await page.getByRole("tab", { name: /^Прошедшие/ }).click();
   await expect(page.getByRole("listitem").filter({ hasText: adult.title })).toContainText("Отменена");
