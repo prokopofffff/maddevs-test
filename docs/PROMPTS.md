@@ -1358,3 +1358,102 @@
 ## 2026-10-23 10:07:38 +0700 — session 95966e22
 
 > онлайн и оффлайн чипы сделай в одну строку с другими, выпадающие списки сделай кастомными по нашему стилю
+
+## 2026-10-23 10:10:01 +0700 — session 95966e22
+
+> надо сделать небольшое подобие профиля, чтобы человек после регистрации заполнил всю инфу про себя один раз и регистрировался на мероприятия по одному клику
+
+## 2026-10-23 10:11:13 +0700 — session 95966e22
+
+> <task-notification>
+> <task-id>b9bhxeqva</task-id>
+> <summary>Monitor event: "CI checks on PR #90 after filter change"</summary>
+> <event>check: pass
+> check: pass</event>
+> </task-notification>
+
+## 2026-10-23 10:11:44 +0700 — session 95966e22
+
+> <task-notification>
+> <task-id>b9bhxeqva</task-id>
+> <summary>Monitor event: "CI checks on PR #90 after filter change"</summary>
+> <event>e2e: pass</event>
+> </task-notification>
+
+## 2026-10-23 10:13:29 +0700 — session 95966e22
+
+> при смене имени/фамилии/даты рождения человек сохраняет свои текущие регистрации, если они не противоречат возрастному ограничению
+
+## 2026-10-23 10:15:40 +0700 — session 95966e22
+
+> все верно
+
+## 2026-10-23 10:24:01 +0700 — session 95966e22
+
+> <task-notification>
+> <task-id>b9bhxeqva</task-id>
+> <tool-use-id>toolu_01Nu8thg1jez19dDiM96HHRD</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-jonya-ko-conductor-workspaces-maddevs-test-missoula/95966e22-a5e1-4c4f-b28d-6151ae02ee5d/tasks/b9bhxeqva.output</output-file>
+> <status>completed</status>
+> <summary>Monitor "CI checks on PR #90 after filter change" stream ended</summary>
+> <event>e2e: pass
+> ALL DONE</event>
+> </task-notification>
+
+## 2026-10-23 10:31:18 +0700 — session 95966e22
+
+> <task-notification>
+> <task-id>a04785e4bb1d4e0b1</task-id>
+> <tool-use-id>toolu_015JuB4YZDXQn84LTTxnK1Yk</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-jonya-ko-conductor-workspaces-maddevs-test-missoula/95966e22-a5e1-4c4f-b28d-6151ae02ee5d/tasks/a04785e4bb1d4e0b1.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Implement profile API (P1)" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>Status: DONE
+> 
+> Commit: `ce7089f` "Профиль: порядок блокировок профиль -&gt; события, конфликт только при смене даты (D-065)". It is a new commit on top of `18cf6b7`, not an amend, and includes the DEVLOG entry.
+> 
+> Tests: `participant-profile` went from 4 of 27 red to 27 of 27 green (three runs in a row). The full API suite is 28 files and 218 tests, all passing. API typecheck, `pnpm lint` and web typecheck are clean. I did not run e2e.
+> 
+> 1. **Race:** I added the lock order profile, then events. `saveProfile` takes the profile row `FOR UPDATE` first, inserting it if missing. `registerSignedIn` reads the profile `FOR SHARE` before `lockEvent`. I also create a body-data profile before `lockEvent`. Every outcome without a new registration rolls it back, as does `profile_conflicts` for a first save. If I had created it after the event lock, it would take a profile lock after an event lock and deadlock with a concurrent first save.
+> 2. **Reminders:** I added `ORDER BY events.id` to the `FOR SHARE` select. A test checks the SQL text.
+> 3. **Conflict:** a registration is a conflict only if its birthDate changes and the new date is below min_age. A name-only edit after the organizer raised min_age now returns 200 and renames the registration.
+> 4. **Corrections:** pending correction requests are withdrawn for every registration the edit wrote, even when the values are unchanged. `updated` still counts only rows where values changed.
+> 5. **Docs:** SPEC §2 and §4 and D-065 are updated, including the not-null marks on `created_at` and `updated_at`.
+> 
+> Concerns:
+> - Registrations of one email on different events now wait for a concurrent profile edit to finish.
+> - The race test checks the end state (the registration carries the final profile in either order), not how often each interleaving happens. It failed on the old code, so it does catch the race.
+> 
+> I appended the fix report to `/Users/jonya_ko/conductor/workspaces/maddevs-test/missoula/.context/profile/report-api.md`.</result>
+> <usage><subagent_tokens>134797</subagent_tokens><tool_uses>12</tool_uses><duration_ms>222351</duration_ms></usage>
+> </task-notification>
+
+## 2026-10-23 10:40:35 +0700 — session 95966e22
+
+> <task-notification>
+> <task-id>a100a45221958886f</task-id>
+> <tool-use-id>toolu_01AxdRCWaVeMvoRGXmMdKQbB</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-jonya-ko-conductor-workspaces-maddevs-test-missoula/95966e22-a5e1-4c4f-b28d-6151ae02ee5d/tasks/a100a45221958886f.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Implement profile web (P2)" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>Status: all four fixes are done in a new commit `2da5861` (not amended, not pushed). `docs/PROMPTS.md` is still modified and unstaged because the hook writes it.
+> 
+> **Changes**
+> 1. **README numbers.** The «Работает и покрыто тестами» line now says «28 файлов, 218 тестов», with e2e at 6 passed, from the runs below. I added «(проверено 23.10.2026)» and changed «Собрано из DEVLOG на 22.10.2026» to 23.10.2026.
+> 2. **`ConfirmDialog.tsx`.** The text and `children` now sit in one `div.dialog__body`, and `aria-describedby` points at it. I added the `.dialog__body` rule to `app.css`.
+> 3. **`ProfileBlock.tsx`.** After the editor closes, whether by save or «Отмена», focus returns to the «Изменить» button, via a ref and an effect.
+> 4. **README manual check.** It now says the seat goes to the first person on the waitlist, «если он есть».
+> 5. **DEVLOG.** The new entry says there is no unit test for `ageOnEventDay` by choice, under D-041. It notes the client helper mirrors `apps/api/src/domain/age.ts` and is covered only by e2e.
+> 
+> **Extra e2e checks (not requested).** In `profile.spec.ts` I added `toHaveAccessibleDescription(/&lt;title&gt; — с 18 лет/)` on the dialog, and `toBeFocused()` on «Изменить» after «Отмена» and after a save.
+> 
+> **Commands and output**
+> - `export TEST_DATABASE_URL=postgres://app:app@localhost:5455/postgres; pnpm --filter @app/api test` → Test Files 28 passed (28), Tests 218 passed (218).
+> - `pnpm e2e` → 6 passed. I ran it before the edits for the README numbers, and again after adding the two assertions.
+> - `pnpm typecheck &amp;&amp; pnpm lint` → no errors.
+> 
+> **Not checked:** a real screen reader (only Playwright's computed accessible description), and the 375 px layout.</result>
+> <usage><subagent_tokens>128762</subagent_tokens><tool_uses>4</tool_uses><duration_ms>82395</duration_ms></usage>
+> </task-notification>
