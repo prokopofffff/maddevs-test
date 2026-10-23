@@ -12,6 +12,7 @@ import { createRoot } from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router";
 import { ApiError } from "./api.ts";
 import { AccountLayout } from "./components/AccountLayout.tsx";
+import { SiteLayout } from "./components/SiteLayout.tsx";
 import { AuthPage } from "./pages/AuthPage.tsx";
 import { CatalogPage } from "./pages/CatalogPage.tsx";
 import { CheckinPage } from "./pages/CheckinPage.tsx";
@@ -36,38 +37,43 @@ const queryClient = new QueryClient({
 });
 
 const router = createBrowserRouter([
-  { path: "/", element: <CatalogPage /> },
-  { path: "/login", element: <AuthPage mode="login" key="login" /> },
-  { path: "/signup", element: <AuthPage mode="signup" key="signup" /> },
-  { path: "/e/:eventId", element: <PublicEventPage /> },
-  { path: "/r/:token", element: <MyRegistrationPage /> },
-  { path: "/me", element: <MyRegistrationsPage /> },
   {
-    path: "/organizer",
-    element: <AccountLayout role="organizer" />,
+    element: <SiteLayout />,
     children: [
-      { index: true, element: <MyEventsPage /> },
-      { path: "events/new", element: <EventFormPage key="new" /> },
-      { path: "events/:id", element: <EventAdminPage /> },
-      { path: "events/:id/edit", element: <EventFormPage key="edit" /> },
+      { path: "/", element: <CatalogPage /> },
+      { path: "/login", element: <AuthPage mode="login" key="login" /> },
+      { path: "/signup", element: <AuthPage mode="signup" key="signup" /> },
+      { path: "/e/:eventId", element: <PublicEventPage /> },
+      { path: "/r/:token", element: <MyRegistrationPage /> },
+      { path: "/me", element: <MyRegistrationsPage /> },
+      {
+        path: "/organizer",
+        element: <AccountLayout role="organizer" />,
+        children: [
+          { index: true, element: <MyEventsPage /> },
+          { path: "events/new", element: <EventFormPage key="new" /> },
+          { path: "events/:id", element: <EventAdminPage /> },
+          { path: "events/:id/edit", element: <EventFormPage key="edit" /> },
+        ],
+      },
+      {
+        path: "/support",
+        element: <AccountLayout role="support" />,
+        children: [
+          { index: true, element: <SupportPage /> },
+          { path: "events", element: <SupportEventsPage /> },
+          { path: "events/:id", element: <SupportEventPage /> },
+        ],
+      },
+      { path: "*", element: <NotFoundPage /> },
     ],
   },
-  // Экран входа — без шапки кабинета, только для владельца события (S9).
+  // Экран входа — без шапки, только для владельца события (S9, D-023).
   {
     path: "/organizer/events/:id/checkin",
     element: <AccountLayout role="organizer" bare />,
     children: [{ index: true, element: <CheckinPage /> }],
   },
-  {
-    path: "/support",
-    element: <AccountLayout role="support" />,
-    children: [
-      { index: true, element: <SupportPage /> },
-      { path: "events", element: <SupportEventsPage /> },
-      { path: "events/:id", element: <SupportEventPage /> },
-    ],
-  },
-  { path: "*", element: <NotFoundPage /> },
 ]);
 
 createRoot(document.getElementById("root")!).render(

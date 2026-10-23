@@ -3,7 +3,6 @@ import { useSearchParams } from "react-router";
 import { api, client } from "../api.ts";
 import { ErrorBanner } from "../components/Banner.tsx";
 import { Icon } from "../components/Icon.tsx";
-import { PublicHeader } from "../components/PublicHeader.tsx";
 import { errorText } from "../errors.ts";
 import { CatalogFilters } from "./catalog/CatalogFilters.tsx";
 import { EventCard } from "./catalog/EventCard.tsx";
@@ -37,49 +36,46 @@ export function CatalogPage() {
   const list = events.data?.pages.flatMap((page) => page.events) ?? [];
 
   return (
-    <>
-      <PublicHeader />
-      <main className="app-main catalog">
-        <h1 className="visually-hidden">События</h1>
-        <CatalogFilters params={params} onChange={change} onReset={reset} />
-        {events.isError ? (
-          <ErrorBanner title="Не удалось загрузить события">{errorText(events.error)}</ErrorBanner>
-        ) : events.isPending ? (
-          <div className="catalog__grid" aria-busy="true" aria-label="Загрузка событий">
-            {[0, 1, 2].map((i) => (
-              <span key={i} className="skeleton skeleton--card" />
+    <main className="app-main catalog">
+      <h1 className="visually-hidden">События</h1>
+      <CatalogFilters params={params} onChange={change} onReset={reset} />
+      {events.isError ? (
+        <ErrorBanner title="Не удалось загрузить события">{errorText(events.error)}</ErrorBanner>
+      ) : events.isPending ? (
+        <div className="catalog__grid" aria-busy="true" aria-label="Загрузка событий">
+          {[0, 1, 2].map((i) => (
+            <span key={i} className="skeleton skeleton--card" />
+          ))}
+        </div>
+      ) : list.length === 0 ? (
+        <div className="empty-state">
+          <span className="empty-state__icon">
+            <Icon name="search" />
+          </span>
+          <p className="empty-state__title">Ничего не нашлось</p>
+          <button className="button button--secondary" type="button" onClick={reset}>
+            Сбросить фильтры
+          </button>
+        </div>
+      ) : (
+        <>
+          <div className="catalog__grid" aria-busy={events.isPlaceholderData}>
+            {list.map((event) => (
+              <EventCard key={event.id} event={event} />
             ))}
           </div>
-        ) : list.length === 0 ? (
-          <div className="empty-state">
-            <span className="empty-state__icon">
-              <Icon name="search" />
-            </span>
-            <p className="empty-state__title">Ничего не нашлось</p>
-            <button className="button button--secondary" type="button" onClick={reset}>
-              Сбросить фильтры
+          {events.hasNextPage && (
+            <button
+              className="button button--secondary catalog__more"
+              type="button"
+              disabled={events.isFetchingNextPage}
+              onClick={() => void events.fetchNextPage()}
+            >
+              {events.isFetchingNextPage ? "Загружаем…" : "Показать ещё"}
             </button>
-          </div>
-        ) : (
-          <>
-            <div className="catalog__grid" aria-busy={events.isPlaceholderData}>
-              {list.map((event) => (
-                <EventCard key={event.id} event={event} />
-              ))}
-            </div>
-            {events.hasNextPage && (
-              <button
-                className="button button--secondary catalog__more"
-                type="button"
-                disabled={events.isFetchingNextPage}
-                onClick={() => void events.fetchNextPage()}
-              >
-                {events.isFetchingNextPage ? "Загружаем…" : "Показать ещё"}
-              </button>
-            )}
-          </>
-        )}
-      </main>
-    </>
+          )}
+        </>
+      )}
+    </main>
   );
 }

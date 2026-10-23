@@ -2,7 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { api, client } from "../../api.ts";
 import { ErrorBanner } from "../../components/Banner.tsx";
-import { Brand } from "../../components/Brand.tsx";
 import { Icon } from "../../components/Icon.tsx";
 import { PageSkeleton } from "../../components/Skeleton.tsx";
 import { StatusBadge } from "../../components/StatusBadge.tsx";
@@ -37,7 +36,6 @@ export function RegistrationResult({ result, token }: { result: Result; token: s
   if (registration.isError) {
     return (
       <div className="page page--narrow">
-        <Brand />
         <ErrorBanner title="Не удалось загрузить регистрацию">{errorText(registration.error)}</ErrorBanner>
         <Link className="button button--secondary button--block" to={`/r/${token}`}>
           Моя регистрация
@@ -55,7 +53,6 @@ export function RegistrationResult({ result, token }: { result: Result; token: s
 
   return (
     <div className="page page--split">
-      <Brand />
       <div className="page__main">
         <div className="result">
           <span className={`result__icon ${iconModifier}`}>

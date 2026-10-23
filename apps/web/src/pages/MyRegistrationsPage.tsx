@@ -2,7 +2,6 @@ import { useCallback, useState } from "react";
 import { Link } from "react-router";
 import { ErrorBanner } from "../components/Banner.tsx";
 import { Icon } from "../components/Icon.tsx";
-import { PublicHeader } from "../components/PublicHeader.tsx";
 import { PageSkeleton } from "../components/Skeleton.tsx";
 import { Toast } from "../components/Toast.tsx";
 import { errorText } from "../errors.ts";
@@ -21,21 +20,13 @@ type Tab = "current" | "past";
 export function MyRegistrationsPage() {
   const participant = useParticipant();
   if (participant.isPending) {
-    return (
-      <>
-        <PublicHeader />
-        <PageSkeleton label="Загрузка" />
-      </>
-    );
+    return <PageSkeleton label="Загрузка" />;
   }
   if (participant.isError) {
     return (
-      <>
-        <PublicHeader />
-        <div className="page page--narrow">
-          <ErrorBanner title="Не удалось проверить вход">{errorText(participant.error)}</ErrorBanner>
-        </div>
-      </>
+      <div className="page page--narrow">
+        <ErrorBanner title="Не удалось проверить вход">{errorText(participant.error)}</ErrorBanner>
+      </div>
     );
   }
   return participant.data ? <Registrations participant={participant.data} /> : <ParticipantLogin />;
@@ -62,7 +53,6 @@ function Registrations({ participant }: { participant: Participant }) {
 
   return (
     <>
-      <PublicHeader />
       <div className="page page--narrow">
         <h1 className="heading heading--page">Мои регистрации</h1>
         {participant.profile ? (

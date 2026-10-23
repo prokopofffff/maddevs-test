@@ -5,7 +5,6 @@ import { Link, useNavigate, useParams } from "react-router";
 import { api, ApiError, client } from "../api.ts";
 import { AgeBadge } from "../components/AgeBadge.tsx";
 import { ErrorBanner } from "../components/Banner.tsx";
-import { PublicHeader } from "../components/PublicHeader.tsx";
 import { Icon } from "../components/Icon.tsx";
 import { PageSkeleton } from "../components/Skeleton.tsx";
 import { errorText } from "../errors.ts";
@@ -161,108 +160,105 @@ export function PublicEventPage() {
   if (event.error instanceof ApiError && event.error.status === 404) return <NotFoundPage />;
 
   return (
-    <>
-      <PublicHeader />
-      <div className="page page--split">
-        {event.isError ? (
-          <ErrorBanner title="Не удалось загрузить событие">{errorText(event.error)}</ErrorBanner>
-        ) : (
-          <>
-            <div className="page__main">
-              <header className="event-header">
-                <div className="event-header__badges">
-                  <AgeBadge minAge={event.data.minAge} />
+    <div className="page page--split">
+      {event.isError ? (
+        <ErrorBanner title="Не удалось загрузить событие">{errorText(event.error)}</ErrorBanner>
+      ) : (
+        <>
+          <div className="page__main">
+            <header className="event-header">
+              <div className="event-header__badges">
+                <AgeBadge minAge={event.data.minAge} />
+              </div>
+              <h1 className="heading heading--page">{event.data.title}</h1>
+              <p className="event-header__time">
+                <Icon name="calendar" />
+                {formatEventTime(event.data.startsAt, event.data.timezone)}
+              </p>
+              <p className="text-muted">
+                {categoryLabel[event.data.category]} · {fullPlace(event.data)}
+              </p>
+              {event.data.description && <p style={{ whiteSpace: "pre-line" }}>{event.data.description}</p>}
+            </header>
+          </div>
+          <div className="page__side">
+            <div className="panel">
+              {signedIn && event.data.myRegistration ? (
+                <>
+                  <p className="seats seats--available">
+                    <Icon name="check" />
+                    Вы уже зарегистрированы
+                  </p>
+                  <Link
+                    className="button button--secondary button--block"
+                    to={`/r/${event.data.myRegistration.token}`}
+                  >
+                    Открыть мою регистрацию
+                  </Link>
+                </>
+              ) : event.data.started ? (
+                <div className="banner" role="status">
+                  <Icon name="info" />
+                  <div className="banner__body">
+                    <p className="banner__title">Событие началось — регистрация закрыта</p>
+                  </div>
                 </div>
-                <h1 className="heading heading--page">{event.data.title}</h1>
-                <p className="event-header__time">
-                  <Icon name="calendar" />
-                  {formatEventTime(event.data.startsAt, event.data.timezone)}
-                </p>
-                <p className="text-muted">
-                  {categoryLabel[event.data.category]} · {fullPlace(event.data)}
-                </p>
-                {event.data.description && <p style={{ whiteSpace: "pre-line" }}>{event.data.description}</p>}
-              </header>
-            </div>
-            <div className="page__side">
-              <div className="panel">
-                {signedIn && event.data.myRegistration ? (
-                  <>
+              ) : (
+                <>
+                  {event.data.freeSeats > 0 ? (
                     <p className="seats seats--available">
                       <Icon name="check" />
-                      Вы уже зарегистрированы
+                      {seatsLeft(event.data.freeSeats)}
                     </p>
-                    <Link
-                      className="button button--secondary button--block"
-                      to={`/r/${event.data.myRegistration.token}`}
-                    >
-                      Открыть мою регистрацию
-                    </Link>
-                  </>
-                ) : event.data.started ? (
-                  <div className="banner" role="status">
-                    <Icon name="info" />
-                    <div className="banner__body">
-                      <p className="banner__title">Событие началось — регистрация закрыта</p>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    {event.data.freeSeats > 0 ? (
-                      <p className="seats seats--available">
-                        <Icon name="check" />
-                        {seatsLeft(event.data.freeSeats)}
-                      </p>
-                    ) : (
-                      <p className="seats seats--waitlist">
-                        <Icon name="clock" />
-                        Мест нет — вы встанете в лист ожидания
-                      </p>
-                    )}
-                    {signedIn?.profile ? (
-                      <OneClickRegistration
-                        profile={signedIn.profile}
-                        event={event.data}
-                        pending={registerSignedIn.isPending}
-                        error={registerSignedIn.error}
-                        onRegister={() => registerSignedIn.mutate(undefined)}
-                      />
-                    ) : signedIn ? (
+                  ) : (
+                    <p className="seats seats--waitlist">
+                      <Icon name="clock" />
+                      Мест нет — вы встанете в лист ожидания
+                    </p>
+                  )}
+                  {signedIn?.profile ? (
+                    <OneClickRegistration
+                      profile={signedIn.profile}
+                      event={event.data}
+                      pending={registerSignedIn.isPending}
+                      error={registerSignedIn.error}
+                      onRegister={() => registerSignedIn.mutate(undefined)}
+                    />
+                  ) : signedIn ? (
+                    <RegistrationForm
+                      lockedEmail={signedIn.email}
+                      initial={signedIn.lastData ?? undefined}
+                      pending={registerSignedIn.isPending}
+                      error={registerSignedIn.error}
+                      onSubmit={(input) => registerSignedIn.mutate(input)}
+                    />
+                  ) : (
+                    <>
                       <RegistrationForm
-                        lockedEmail={signedIn.email}
-                        initial={signedIn.lastData ?? undefined}
-                        pending={registerSignedIn.isPending}
-                        error={registerSignedIn.error}
-                        onSubmit={(input) => registerSignedIn.mutate(input)}
+                        initial={data}
+                        pending={request.isPending}
+                        error={request.error}
+                        onSubmit={(input) => request.mutate({ purpose: "register", ...input })}
                       />
-                    ) : (
-                      <>
-                        <RegistrationForm
-                          initial={data}
-                          pending={request.isPending}
-                          error={request.error}
-                          onSubmit={(input) => request.mutate({ purpose: "register", ...input })}
-                        />
-                        <Link className="link" to={`/me?next=/e/${eventId}`}>
-                          Войти, чтобы регистрироваться без кода
-                        </Link>
-                      </>
-                    )}
-                  </>
-                )}
-                {!signedIn && (
-                  <LookupForm
-                    initial={lookupEmail}
-                    pending={lookup.isPending}
-                    error={lookup.error}
-                    onSubmit={(email) => lookup.mutate({ purpose: "lookup", email })}
-                  />
-                )}
-              </div>
+                      <Link className="link" to={`/me?next=/e/${eventId}`}>
+                        Войти, чтобы регистрироваться без кода
+                      </Link>
+                    </>
+                  )}
+                </>
+              )}
+              {!signedIn && (
+                <LookupForm
+                  initial={lookupEmail}
+                  pending={lookup.isPending}
+                  error={lookup.error}
+                  onSubmit={(email) => lookup.mutate({ purpose: "lookup", email })}
+                />
+              )}
             </div>
-          </>
-        )}
-      </div>
-    </>
+          </div>
+        </>
+      )}
+    </div>
   );
 }

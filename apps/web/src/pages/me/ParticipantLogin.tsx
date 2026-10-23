@@ -5,7 +5,6 @@ import { useNavigate, useSearchParams } from "react-router";
 import { api, ApiError, client } from "../../api.ts";
 import { ErrorBanner } from "../../components/Banner.tsx";
 import { Icon } from "../../components/Icon.tsx";
-import { PublicHeader } from "../../components/PublicHeader.tsx";
 import { errorText } from "../../errors.ts";
 import { participantKey, participantRegistrationsKey, safeNext } from "../../participant.ts";
 import { CodeStep } from "../event/CodeStep.tsx";
@@ -100,59 +99,56 @@ export function ParticipantLogin() {
   }
 
   return (
-    <>
-      <PublicHeader />
-      <div className="page page--narrow">
-        <header className="event-header">
-          <h1 className="heading heading--page">Мои регистрации</h1>
-          <p>Введите email, на который регистрировались, — пришлём код для входа.</p>
-        </header>
-        <div className="panel">
-          {request.error ? <ErrorBanner>{errorText(request.error)}</ErrorBanner> : null}
-          <form
-            className="form"
-            noValidate
-            onSubmit={(e) => {
-              e.preventDefault();
-              setTouched(true);
-              if (emailSchema.safeParse(email).success) request.mutate(email);
-            }}
+    <div className="page page--narrow">
+      <header className="event-header">
+        <h1 className="heading heading--page">Мои регистрации</h1>
+        <p>Введите email, на который регистрировались, — пришлём код для входа.</p>
+      </header>
+      <div className="panel">
+        {request.error ? <ErrorBanner>{errorText(request.error)}</ErrorBanner> : null}
+        <form
+          className="form"
+          noValidate
+          onSubmit={(e) => {
+            e.preventDefault();
+            setTouched(true);
+            if (emailSchema.safeParse(email).success) request.mutate(email);
+          }}
+        >
+          <div className={`field ${invalid ? "field--error" : ""}`}>
+            <label className="field__label" htmlFor="participant-email">
+              Email
+            </label>
+            <input
+              className="field__control"
+              id="participant-email"
+              type="email"
+              autoComplete="email"
+              placeholder="name@example.com"
+              autoFocus
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              aria-invalid={invalid}
+              aria-describedby={invalid ? "participant-email-error" : undefined}
+            />
+            {invalid && (
+              <p className="field__error" id="participant-email-error">
+                <Icon name="info" />
+                Введите email, например name@example.com
+              </p>
+            )}
+          </div>
+          <button
+            className={`button button--primary button--block ${request.isPending ? "button--loading" : ""}`}
+            type="submit"
+            aria-busy={request.isPending}
+            disabled={request.isPending}
           >
-            <div className={`field ${invalid ? "field--error" : ""}`}>
-              <label className="field__label" htmlFor="participant-email">
-                Email
-              </label>
-              <input
-                className="field__control"
-                id="participant-email"
-                type="email"
-                autoComplete="email"
-                placeholder="name@example.com"
-                autoFocus
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                aria-invalid={invalid}
-                aria-describedby={invalid ? "participant-email-error" : undefined}
-              />
-              {invalid && (
-                <p className="field__error" id="participant-email-error">
-                  <Icon name="info" />
-                  Введите email, например name@example.com
-                </p>
-              )}
-            </div>
-            <button
-              className={`button button--primary button--block ${request.isPending ? "button--loading" : ""}`}
-              type="submit"
-              aria-busy={request.isPending}
-              disabled={request.isPending}
-            >
-              {request.isPending && <span className="button__spinner" aria-hidden="true" />}
-              {request.isPending ? "Отправляем код…" : "Получить код"}
-            </button>
-          </form>
-        </div>
+            {request.isPending && <span className="button__spinner" aria-hidden="true" />}
+            {request.isPending ? "Отправляем код…" : "Получить код"}
+          </button>
+        </form>
       </div>
-    </>
+    </div>
   );
 }
