@@ -6,21 +6,28 @@
 
 ## Запуск
 
-Нужен Docker с Compose v2.
+Нужны Docker с Compose v2 и Node ≥ 22.12 с pnpm (`corepack enable`).
 
 ```sh
-docker compose up -d --build
-docker compose exec api pnpm db:seed    # демо-данные; на непустой базе ничего не делает
-docker compose exec api pnpm db:reset   # стереть базу, применить миграции, засеять заново
+pnpm install
+pnpm run dev   # Postgres и Mailpit из compose, API с перезапуском по правкам, Vite
 ```
 
-Приложение — <http://localhost:3000>, все письма — в Mailpit на <http://localhost:8025>. Сид печатает входы и ссылки на события.
+При старте `pnpm run dev` печатает адреса и команду сида:
 
-Занятый порт сдвигается переменными `POSTGRES_PORT`, `MAILPIT_SMTP_PORT`, `MAILPIT_UI_PORT`, `API_PORT`. С другим `API_PORT` задайте и `PUBLIC_URL`, иначе ссылки в письмах поведут на порт 3000:
-
-```sh
-POSTGRES_PORT=5455 API_PORT=3001 PUBLIC_URL=http://localhost:3001 docker compose up -d --build
 ```
+  Приложение: http://localhost:5173
+  API:        http://localhost:3000
+  Mailpit:    http://localhost:8025
+  Postgres:   postgres://app:app@localhost:5432/app
+  Сид:        DATABASE_URL=postgres://app:app@localhost:5432/app PUBLIC_URL=http://localhost:5173 pnpm db:seed
+```
+
+Во втором терминале выполните команду из строки «Сид»: она заливает демо-данные и печатает входы и ссылки на события. На непустой базе сид ничего не делает. Стереть базу, применить миграции и засеять заново — та же команда с `pnpm db:reset`. Все письма — в Mailpit.
+
+Занятые порты (5432, 1025, 8025, 3000, 5173) сдвигаются на следующий свободный, поэтому адреса берите из вывода. Порт, заданный переменной (`POSTGRES_PORT`, `MAILPIT_SMTP_PORT`, `MAILPIT_UI_PORT`, `PORT`, `WEB_PORT`), не сдвигается: если он занят, запуск падает. Vite проксирует `/api`, ссылки в письмах ведут на него. После Ctrl+C контейнеры остаются, остановить — `docker compose stop`.
+
+Без Node стенд целиком поднимается в Docker: `docker compose up -d --build`, затем `docker compose exec api pnpm db:seed`, приложение — на <http://localhost:3000>. Порты сдвигаются переменными `POSTGRES_PORT`, `MAILPIT_SMTP_PORT`, `MAILPIT_UI_PORT`, `API_PORT`; с другим `API_PORT` задайте и `PUBLIC_URL`, иначе ссылки в письмах поведут на порт 3000. Контейнер `api` и `pnpm run dev` работают с одной базой `app`.
 
 ### Демо-данные
 
@@ -30,7 +37,7 @@ POSTGRES_PORT=5455 API_PORT=3001 PUBLIC_URL=http://localhost:3001 docker compose
 | `demo2@example.com` | `demo` | второй организатор, «Лекция»; события `demo` ему отвечают `404` |
 | `support@example.com` | `support` | поддержка, одна заявка на исправление фамилии |
 
-Участник входит без пароля: «Мои регистрации» в шапке → email → код из Mailpit. У `anna.ivanova@example.com` есть регистрации на все события `demo`. Ещё одну учётку поддержки создаёт `docker compose exec api pnpm admin:create <email>`.
+Участник входит без пароля: «Мои регистрации» в шапке → email → код из Mailpit. У `anna.ivanova@example.com` есть регистрации на все события `demo`. Ещё одну учётку поддержки создаёт `pnpm admin:create <email>` (при сдвинутом порте Postgres — с `DATABASE_URL` из строки «Сид»).
 
 Даты считаются от запуска сида:
 
@@ -57,17 +64,6 @@ POSTGRES_PORT=5455 API_PORT=3001 PUBLIC_URL=http://localhost:3001 docker compose
 - **Поддержка.** Под `support` примите заявку «Морозва → Морозова»: фамилия исправится, участнику уйдёт письмо.
 
 Гонку за последнее место (R3) руками не воспроизвести, её проверяет тест.
-
-## Разработка
-
-Нужны Docker и Node ≥ 22.12 с pnpm (`corepack enable`).
-
-```sh
-pnpm install
-pnpm dev   # Postgres и Mailpit из compose, API с перезапуском по правкам, Vite
-```
-
-`pnpm dev` берёт порты 5432, 1025, 8025, 3000 и 5173 и сдвигает занятые на следующий свободный. Адреса и команду сида с нужным `DATABASE_URL` он печатает при старте. Порт, заданный переменной (`POSTGRES_PORT`, `MAILPIT_SMTP_PORT`, `MAILPIT_UI_PORT`, `PORT`, `WEB_PORT`), не сдвигается: если он занят, запуск падает. Vite проксирует `/api`, ссылки в письмах ведут на него. После Ctrl+C контейнеры остаются (`docker compose stop`), база `app` общая с контейнером `api`.
 
 ## Тесты
 

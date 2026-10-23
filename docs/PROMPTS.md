@@ -1526,3 +1526,7 @@
 > 
 > 
 > Create a PR .context/attachments/dB0ad6/PR instructions.md
+
+## 2026-10-23 12:32:11 +0700 — session ae99bcd4
+
+> поменяй локальный запуск проекта в readme на pnpm run dev
