@@ -54,8 +54,46 @@ button.back-link { padding: 0; border: 0; background: none; font: inherit; font-
 .catalog { gap: var(--space-5); }
 .catalog-filters { display: flex; flex-direction: column; gap: var(--space-3); }
 .catalog-search { max-width: none; flex: none; }
-.catalog-filters__row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-2) var(--space-3); }
-.catalog-filters__select { flex: 1 1 150px; max-width: 220px; }
+.catalog-filters__row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+
+/* Выпадающий фильтр: пилюля как у чипа, список — карточка под ней (D-064). */
+.filter-select { position: relative; }
+.filter-select__trigger { display: inline-flex; align-items: center; gap: var(--space-1); }
+.filter-select__label { font-weight: var(--font-weight-medium); }
+.filter-select__icon { width: 18px; height: 18px; margin-left: var(--space-1); transition: transform 0.15s ease; }
+.filter-select__trigger[aria-expanded="true"] .filter-select__icon { transform: rotate(180deg); }
+.filter-select__list {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  left: 0;
+  z-index: 20;
+  min-width: max(100%, 200px);
+  max-height: 320px;
+  overflow-y: auto;
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+  border: var(--border-width) solid var(--color-text);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-md);
+}
+.filter-select__list:focus-visible { outline: none; }
+.filter-select__option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--control-height-sm);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.filter-select__option[data-active] { background: var(--color-surface-muted); }
+.filter-select__option[aria-selected="true"] { font-weight: var(--font-weight-bold); }
+.filter-select__check { width: 18px; height: 18px; flex: none; }
 
 /* Чип — вид переключателя `.segmented`: нажатый чёрный с акцентным текстом. Высота 44 px — цель нажатия. */
 .chip {
@@ -97,7 +135,7 @@ button.back-link { padding: 0; border: 0; background: none; font: inherit; font-
 }
 .event-card:hover { background: var(--color-hover); }
 .event-card:hover .event-card__title { background: var(--color-accent); }
-.event-card__title { font-size: var(--font-size-xl); font-weight: var(--font-weight-black); line-height: 1.15; letter-spacing: -0.03em; }
+.event-card__title { max-width: 100%; font-size: var(--font-size-xl); font-weight: var(--font-weight-black); line-height: 1.15; letter-spacing: -0.03em; overflow-wrap: anywhere; }
 .event-card__time { color: var(--color-text-muted); font-size: var(--font-size-sm); }
 .event-card__badges { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: auto; padding-top: var(--space-2); }
 

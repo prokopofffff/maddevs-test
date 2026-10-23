@@ -1354,3 +1354,7 @@
 > e2e: pass https://github.com/prokopofffff/maddevs-test/actions/runs/39826383784/job/119991294643
 > ALL DONE</event>
 > </task-notification>
+
+## 2026-10-23 10:07:38 +0700 — session 95966e22
+
+> онлайн и оффлайн чипы сделай в одну строку с другими, выпадающие списки сделай кастомными по нашему стилю

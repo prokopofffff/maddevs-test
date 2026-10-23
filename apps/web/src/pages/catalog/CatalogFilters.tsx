@@ -2,6 +2,7 @@ import { EVENT_CATEGORIES } from "@app/api/schemas";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { api, client } from "../../api.ts";
+import { FilterSelect, type FilterOption } from "../../components/FilterSelect.tsx";
 import { Icon } from "../../components/Icon.tsx";
 import { categoryLabel } from "../../format.ts";
 import type { CatalogParams } from "./query.ts";
@@ -72,38 +73,6 @@ function Chip({ pressed, disabled, onClick, children }: { pressed: boolean; disa
   );
 }
 
-function SelectField({
-  id,
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  id: string;
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: readonly (readonly [string, string])[];
-}) {
-  return (
-    <div className="field catalog-filters__select">
-      <label className="field__label" htmlFor={id}>
-        {label}
-      </label>
-      <div className="select">
-        <select className="field__control" id={id} value={value} onChange={(e) => onChange(e.target.value)}>
-          {options.map(([optionValue, text]) => (
-            <option key={optionValue} value={optionValue}>
-              {text}
-            </option>
-          ))}
-        </select>
-        <Icon name="chevronDown" className="select__icon" />
-      </div>
-    </div>
-  );
-}
-
 /**
  * Поиск, чипы и выпадающие списки каталога. Состояния своего нет: всё читается из `params` и пишется обратно в адрес.
  * «Сегодня» и «На неделе» — подмножества «Предстоящих», поэтому делят с ними один параметр `when`.
@@ -120,7 +89,7 @@ export function CatalogFilters({ params, onChange, onReset }: Props) {
   // Город из ссылки показываем, даже если его нет в списке (событий там уже нет или список ещё грузится).
   const cityList = cities.data ?? [];
   const city = params.city ? (cityList.find((c) => c.toLowerCase() === params.city?.toLowerCase()) ?? params.city) : "";
-  const cityOptions: (readonly [string, string])[] = [
+  const cityOptions: FilterOption[] = [
     ["", "Любой"],
     ...(city && !cityList.includes(city) ? [[city, city] as const] : []),
     ...cityList.map((c) => [c, c] as const),
@@ -133,7 +102,7 @@ export function CatalogFilters({ params, onChange, onReset }: Props) {
   return (
     <div className="catalog-filters">
       <SearchBox q={params.q ?? ""} onCommit={commitSearch} />
-      <div className="catalog-filters__row" role="group" aria-label="Время">
+      <div className="catalog-filters__row">
         <Chip pressed={!past} onClick={() => onChange({ when: "upcoming" })}>
           Предстоящие
         </Chip>
@@ -149,24 +118,22 @@ export function CatalogFilters({ params, onChange, onReset }: Props) {
         <Chip pressed={params.hasSeats === "1"} onClick={() => onChange({ hasSeats: params.hasSeats === "1" ? undefined : "1" })}>
           Есть места
         </Chip>
-      </div>
-      <div className="catalog-filters__row">
         <Chip pressed={params.format === "offline"} onClick={() => onChange({ format: params.format === "offline" ? undefined : "offline" })}>
           Офлайн
         </Chip>
         <Chip pressed={params.format === "online"} onClick={() => onChange({ format: params.format === "online" ? undefined : "online" })}>
           Онлайн
         </Chip>
-        <SelectField id="catalog-city" label="Город" value={city} options={cityOptions} onChange={(v) => onChange({ city: v || undefined })} />
-        <SelectField
-          id="catalog-category"
+      </div>
+      <div className="catalog-filters__row">
+        <FilterSelect label="Город" value={city} options={cityOptions} onChange={(v) => onChange({ city: v || undefined })} />
+        <FilterSelect
           label="Категория"
           value={params.category ?? ""}
           options={[["", "Любая"], ...EVENT_CATEGORIES.map((c) => [c, categoryLabel[c]] as const)]}
           onChange={(v) => onChange({ category: (v || undefined) as CatalogParams["category"] })}
         />
-        <SelectField
-          id="catalog-age"
+        <FilterSelect
           label="Возраст"
           value={params.maxAge ?? ""}
           options={AGE_OPTIONS}

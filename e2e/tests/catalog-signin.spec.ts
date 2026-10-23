@@ -10,7 +10,8 @@ test("каталог → вход участника по коду → реги�
 
   // Каталог: фильтр по городу оставляет карточку, у неё бейдж «0+» и нет одинокого «0» (D-060).
   await page.goto("/");
-  await page.getByLabel("Город").selectOption(city);
+  await page.getByRole("button", { name: /^Город:/ }).click();
+  await page.getByRole("option", { name: city }).click();
   const card = page.getByRole("link", { name: new RegExp(title) });
   await expect(card).toBeVisible();
   await expect(card.getByText("0+", { exact: true })).toBeVisible();
