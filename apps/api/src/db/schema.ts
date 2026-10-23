@@ -29,6 +29,19 @@ export const participantSessions = pgTable("participant_sessions", {
   expiresAt: tz("expires_at").notNull(),
 });
 
+/**
+ * Профиль участника: имя, фамилия и дата рождения для регистрации в один клик; один на email (D-065).
+ * Отдельная таблица, а не строка `users`: у участника учётной записи нет (D-057).
+ */
+export const participantProfiles = pgTable("participant_profiles", {
+  email: text("email").primaryKey(),
+  firstName: text("first_name").notNull(),
+  lastName: text("last_name").notNull(),
+  birthDate: date("birth_date", { mode: "string" }).notNull(),
+  createdAt: tz("created_at").notNull(),
+  updatedAt: tz("updated_at").notNull(),
+});
+
 export const events = pgTable(
   "events",
   {

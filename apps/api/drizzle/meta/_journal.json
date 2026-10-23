@@ -50,6 +50,13 @@
       "when": 1792683048856,
       "tag": "0006_registrations_email_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792725533063,
+      "tag": "0007_participant_profiles",
+      "breakpoints": true
     }
   ]
 }

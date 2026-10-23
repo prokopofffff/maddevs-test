@@ -9,7 +9,7 @@ import { activeRegistration, cancel, DomainError, registerSignedIn, waitlistPosi
 import { confirmVerification, issueVerification } from "../domain/verifications.ts";
 import { apiError, type Env } from "../http.ts";
 import { catalogQuerySchema } from "../schemas/catalog.ts";
-import { confirmCodeSchema, participantDataSchema, verificationRequestSchema } from "../schemas/participant.ts";
+import { confirmCodeSchema, participantDataSchema, signedInRegistrationSchema, verificationRequestSchema } from "../schemas/participant.ts";
 import { validate } from "../validation.ts";
 import { isUuid } from "./params.ts";
 import { optionalParticipant, requireParticipant } from "./participant.ts";
@@ -100,7 +100,8 @@ export const publicRoutes = new Hono<Env>()
     );
   })
   // Регистрация без кода: email из сессии участника, дальше те же проверки и тот же `allocate` (D-058).
-  .post("/events/:id/registrations", requireParticipant, validate("json", participantDataSchema), async (c) => {
+  // Пустое тело — по данным профиля (D-065).
+  .post("/events/:id/registrations", requireParticipant, validate("json", signedInRegistrationSchema), async (c) => {
     const { db, clock, config, outbox } = c.var;
     const id = c.req.param("id");
     if (!isUuid(id)) return apiError(c, 404, "not_found");
@@ -123,6 +124,8 @@ export const publicRoutes = new Hono<Env>()
           return apiError(c, 400, "validation_failed", { issues: [{ path: "birthDate", message: "in_future" }] });
         case "below_min_age":
           return apiError(c, 422, registered.error, { minAge: registered.minAge });
+        case "profile_required":
+          return apiError(c, 409, registered.error);
       }
     }
     // Как у `confirm`: письмо о месте или листе ожидания закоммичено, повтор `existing` писем не ставит (D-014, D-007).

@@ -9,10 +9,11 @@ import {
   writeParticipantCookie,
 } from "../auth/participant-session.ts";
 import { confirmLoginCode, issueLoginCode, lastRegistrationData } from "../domain/participant-login.ts";
+import { getProfile, saveProfile } from "../domain/profile.ts";
 import { participantRegistrations } from "../domain/registrations.ts";
 import { apiError, type Env } from "../http.ts";
 import { emailSchema } from "../schemas/auth.ts";
-import { confirmCodeSchema } from "../schemas/participant.ts";
+import { confirmCodeSchema, profileUpdateSchema } from "../schemas/participant.ts";
 import { z } from "zod";
 import { validate } from "../validation.ts";
 
@@ -83,8 +84,30 @@ export const participantRoutes = new Hono<Env>()
     return c.json({ email: confirmed.email }, 200);
   })
   .get("/me", requireParticipant, async (c) => {
-    const email = c.var.participantEmail;
-    return c.json({ email, lastData: await lastRegistrationData(c.var.db, email) }, 200);
+    const { db, participantEmail: email } = c.var;
+    return c.json({ email, profile: await getProfile(db, email), lastData: await lastRegistrationData(db, email) }, 200);
+  })
+  // Профиль и перенос данных в текущие регистрации (D-065). Письма — только об отказах и повышениях из `cancel`.
+  .put("/profile", requireParticipant, validate("json", profileUpdateSchema), async (c) => {
+    const { db, clock, config, outbox } = c.var;
+    const { cancelConflicts, ...data } = c.req.valid("json");
+    const saved = await saveProfile(
+      db,
+      c.var.participantEmail,
+      data,
+      { cancelConflicts: cancelConflicts === true },
+      { now: clock.now(), publicUrl: config.publicUrl },
+    );
+    if ("error" in saved) {
+      switch (saved.error) {
+        case "birth_date_in_future":
+          return apiError(c, 400, "validation_failed", { issues: [{ path: "birthDate", message: "in_future" }] });
+        case "profile_conflicts":
+          return apiError(c, 409, saved.error, { events: saved.events });
+      }
+    }
+    if (saved.cancelled.length > 0) outbox.wake();
+    return c.json(saved, 200);
   })
   .get("/registrations", requireParticipant, async (c) => {
     const registrations = await participantRegistrations(c.var.db, c.var.participantEmail, c.var.clock.now());

@@ -82,6 +82,17 @@
 
 Строки в `users` у участника нет. Сессия участника и сессия организатора независимы: один email может иметь обе.
 
+### `participant_profiles` — профиль участника (D-065)
+
+| Колонка | Тип | Ограничения |
+|---|---|---|
+| `email` | `text` | PK; обрезанный, в нижнем регистре, как в `participant_sessions` |
+| `first_name`, `last_name` | `text` | not null |
+| `birth_date` | `date` | not null |
+| `created_at`, `updated_at` | `timestamptz` | |
+
+Имя, фамилия и дата рождения для регистрации в один клик; один профиль на email, внешних ключей нет. Создаётся первым `PUT /participant/profile` или первой регистрацией под сессией с данными в теле. Строки `registrations` хранят собственные копии данных (D-017, D-031): профиль их не заменяет, а правка профиля переписывает копии в текущих регистрациях (раздел 4).
+
 ### `email_verifications` — коды подтверждения
 
 | Колонка | Тип | Ограничения |
@@ -242,7 +253,7 @@ RETURNING …
 - `404 not_found` — нет объекта, чужое событие или маршрут не для этой роли (D-005, D-030);
 - `429 rate_limited` + `Retry-After` (D-006).
 
-**Корзины rate limit** (D-006, D-053): `auth` — 10/мин на signup и login; `public` — 20/мин на действия участника (помечены ★, в том числе `POST /participant/verifications`, `POST /participant/verifications/:id/confirm` и `POST /events/:id/registrations`); `global` — 300/мин на все запросы под `/api`, статика фронта не считается. Значения из env. Ключ — IP: адрес сокета, а при `TRUST_PROXY=1` — последний адрес `X-Forwarded-For`, его дописал прокси. Окно — фиксированная минута от первого запроса. Ответы несут `RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset`; `429` ещё и `Retry-After` в секундах — из него интерфейс берёт N в «Слишком много запросов, попробуйте через N секунд».
+**Корзины rate limit** (D-006, D-053): `auth` — 10/мин на signup и login; `public` — 20/мин на действия участника (помечены ★, в том числе `POST /participant/verifications`, `POST /participant/verifications/:id/confirm`, `PUT /participant/profile` и `POST /events/:id/registrations`); `global` — 300/мин на все запросы под `/api`, статика фронта не считается. Значения из env. Ключ — IP: адрес сокета, а при `TRUST_PROXY=1` — последний адрес `X-Forwarded-For`, его дописал прокси. Окно — фиксированная минута от первого запроса. Ответы несут `RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset`; `429` ещё и `Retry-After` в секундах — из него интерфейс берёт N в «Слишком много запросов, попробуйте через N секунд».
 
 ### Вход (D-005)
 
@@ -340,11 +351,14 @@ Cookie `sid`: httpOnly, `SameSite=Lax`, `Path=/`, `Max-Age` 30 дней, `Secure
 |---|---|---|---|
 | ★ `POST /participant/verifications` | `{email}` | `201 {verificationId, expiresAt, resendAfter}`; код `login` уходит на любой email (D-048) | `429 code_resend_too_soon {retryAfter}` |
 | ★ `POST /participant/verifications/:id/confirm` | `{code}` | `200 {email}` + cookie `psid` | `400 code_invalid {attemptsLeft}`, `410 code_expired`, `410 code_attempts_exceeded`, `404 not_found` — код другого назначения |
-| `GET /participant/me` | — | `200 {email, lastData: {firstName, lastName, birthDate} \| null}` — данные последней по `created_at` регистрации этого email | `401` |
+| `GET /participant/me` | — | `200 {email, profile: {firstName, lastName, birthDate} \| null, lastData: {firstName, lastName, birthDate} \| null}` — `profile` из `participant_profiles` (D-065), `lastData` — данные последней по `created_at` регистрации этого email, предзаполнение первой формы профиля | `401` |
+| ★ `PUT /participant/profile` | `{firstName, lastName, birthDate, cancelConflicts?: boolean}` | `200 {profile: {firstName, lastName, birthDate}, updated, cancelled: [{id, title}]}` — `id` и `title` события; `updated` — число регистраций, в которых данные реально изменились | `401`, `400 validation_failed` (в том числе `birthDate` `in_future`), `409 profile_conflicts {events: [{id, title, startsAt, timezone, minAge}]}` |
 | `POST /participant/logout` | — | `204`, сессия и cookie удалены | — |
 | `GET /participant/registrations` | — | `200 {registrations: [{token, status, waitlistPosition?, ticketCode, checkedInAt, cancelledAt, event: {id, title, startsAt, timezone, format, city, started}}]}` | `401` |
 
 Коды `login` проходят только через `POST /participant/verifications/:id/confirm`; на `POST /verifications/:id/confirm` код `login` даёт `404 not_found`, и наоборот для `register` и `lookup`. Выдача кода и подтверждение — как у других назначений: 10 минут, 5 попыток, минута между кодами по email, новый код гасит прежний (D-007, D-039). Повтор верного кода `login` в пределах его жизни снова отвечает `200 {email}` и ставит новую сессию, как повтор `lookup` (D-048): вторая вкладка не получает ошибку, а лишняя сессия безвредна.
+
+**Профиль** (D-065). `PUT /participant/profile` — создание и правка одним маршрутом. Затрагиваются неотменённые регистрации этого email на события, которые ещё не начались, без чекина: в них переписываются `first_name`, `last_name`, `birth_date`; отменённые, чекинутые и на начавшихся событиях остаются как были. Конфликт — затронутая регистрация, на событие которой новая дата рождения не проходит по `min_age` на день события. Есть конфликты и нет `cancelConflicts: true` — `409 profile_conflicts`, ничего не меняется. С `cancelConflicts: true` конфликтные регистрации отменяются тем же `cancel`, что отказ по личной ссылке (раздел 3: письмо `cancelled`, первый из листа ожидания получает место и письмо `promoted`), остальные обновляются, профиль сохраняется — в одной транзакции. Ожидающие заявки на исправление обновлённых и отменённых регистраций снимаются (`withdrawn`, D-031). Письма об изменении самих данных нет. Блокировки: затронутые события берутся `FOR UPDATE` по возрастанию `id`, регистрации перечитываются после этого (D-011).
 
 `GET /participant/registrations` отдаёт все строки этого email, включая отменённые: повторная регистрация после отказа даёт вторую строку, видны обе (D-007). Порядок — по `starts_at` возрастанию, внутри одного события по `created_at`, деление на «Текущие» и «Прошедшие» — на клиенте. `ticketCode` — `null`, если регистрация не `confirmed`; `waitlistPosition` — текущий номер, только у `waitlisted`.
 
@@ -352,9 +366,9 @@ Cookie `sid`: httpOnly, `SameSite=Lax`, `Path=/`, `Max-Age` 30 дней, `Secure
 
 | Метод и путь | Тело | Ответ | Ошибки |
 |---|---|---|---|
-| ★ `POST /events/:id/registrations` | `participantDataSchema {firstName, lastName, birthDate}`; email — из сессии | `200 {result: "confirmed" \| "waitlisted" \| "existing", token, status, waitlistPosition?}` — как у `confirm` с `purpose = register` | `401` без сессии, `404`, `409 registration_closed`, `422 below_min_age {minAge}`, `400 validation_failed` |
+| ★ `POST /events/:id/registrations` | `participantDataSchema {firstName, lastName, birthDate}` или пустой объект `{}` (тело можно не слать) — регистрация по данным профиля (D-065); email — из сессии | `200 {result: "confirmed" \| "waitlisted" \| "existing", token, status, waitlistPosition?}` — как у `confirm` с `purpose = register` | `401` без сессии, `404`, `409 registration_closed`, `409 profile_required` — тело пустое, профиля нет, `422 below_min_age {minAge}`, `400 validation_failed` |
 
-Проверки возраста и закрытой регистрации и `allocate` — те же, что после кода; письма `confirmed` и `waitlisted` уходят так же (раздел 3).
+Данные из тела, если профиля ещё нет, создают его в той же транзакции — только когда регистрация прошла проверки и не оказалась повтором (`existing`). Профиль, который уже есть, при данных в теле не меняется. Проверки возраста и закрытой регистрации и `allocate` — те же, что после кода; письма `confirmed` и `waitlisted` уходят так же (раздел 3).
 
 ### Поддержка (D-030, D-031)
 

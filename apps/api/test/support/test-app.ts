@@ -73,6 +73,9 @@ export class Client {
   post<T = any>(path: string, body?: unknown) {
     return this.request<T>("POST", path, body);
   }
+  put<T = any>(path: string, body?: unknown) {
+    return this.request<T>("PUT", path, body);
+  }
   patch<T = any>(path: string, body?: unknown) {
     return this.request<T>("PATCH", path, body);
   }

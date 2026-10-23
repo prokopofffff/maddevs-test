@@ -17,7 +17,7 @@ const later = (t: TestApp, ms: number) => t.clock.set(new Date(t.clock.now().get
 const wrong = (code: string) => String((Number(code) + 1) % 1_000_000).padStart(6, "0");
 
 describe("вход участника по коду на email (D-057)", () => {
-  it("код уходит на email без регистраций; после кода cookie psid и /participant/me → {email, lastData: null}", async () => {
+  it("код уходит на email без регистраций; после кода cookie psid и /participant/me → {email, profile: null, lastData: null}", async () => {
     const t = testApp();
     const browser = t.client();
 
@@ -41,7 +41,7 @@ describe("вход участника по коду на email (D-057)", () => {
 
     const me = await browser.get("/api/participant/me");
     expect(me.status).toBe(200);
-    expect(me.body).toEqual({ email: "anna@example.com", lastData: null });
+    expect(me.body).toEqual({ email: "anna@example.com", profile: null, lastData: null });
   });
 
   it("без сессии /participant/me → 401", async () => {
@@ -67,6 +67,7 @@ describe("вход участника по коду на email (D-057)", () => {
 
     expect(me.body).toEqual({
       email: "anna@example.com",
+      profile: null,
       lastData: { firstName: "Анна-Мария", lastName: "Петрова", birthDate: "1994-03-15" },
     });
   });

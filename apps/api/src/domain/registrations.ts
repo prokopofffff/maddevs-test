@@ -12,6 +12,7 @@ import { ageOnEventDay, belowMinAge, isFutureDate } from "./age.ts";
 import { newRegistrationToken, newTicketCode } from "./codes.ts";
 import { withdrawPending } from "./corrections.ts";
 import { countsFor, lockEvent, started, type EventRow } from "./events.ts";
+import { createProfileIfMissing, getProfile } from "./profile.ts";
 
 export type RegistrationRow = typeof registrations.$inferSelect;
 export type Verification = typeof emailVerifications.$inferSelect;
@@ -218,19 +219,31 @@ export type AllocateResult = Awaited<ReturnType<typeof allocate>>;
 
 /**
  * Регистрация без кода под сессией участника (D-058): email уже подтверждён кодом входа, поэтому шага с кодом нет.
- * Порядок проверок как у выдачи кода (SPEC, раздел 4): начало, будущая дата, возраст; сами проверки — под
- * блокировкой события и тем же `allocate`, что у регистрации по коду, так что последнее место делится честно.
+ * Данные берутся из тела или, если тело пустое (`data = null`), из профиля — «в один клик» (D-065); нет ни того ни другого —
+ * `profile_required`. Порядок проверок как у выдачи кода (SPEC, раздел 4): начало, будущая дата, возраст; сами проверки —
+ * под блокировкой события и тем же `allocate`, что у регистрации по коду, так что последнее место делится честно.
+ * Данные из тела создают профиль, если его ещё нет, в той же транзакции и только когда проверки пройдены.
  */
-export async function registerSignedIn(db: Db, eventId: string, email: string, data: ParticipantData, ctx: MailContext) {
+export async function registerSignedIn(db: Db, eventId: string, email: string, data: ParticipantData | null, ctx: MailContext) {
   return withTx(
     db,
-    async (tx): Promise<AllocateResult | { error: "not_found" | "birth_date_in_future" } | { error: "below_min_age"; minAge: number }> => {
+    async (
+      tx,
+    ): Promise<
+      AllocateResult | { error: "not_found" | "birth_date_in_future" | "profile_required" } | { error: "below_min_age"; minAge: number }
+    > => {
       const event = await lockEvent(tx, eventId);
       if (!event) return { error: "not_found" };
       if (started(event, ctx.now)) throw new DomainError("registration_closed");
-      if (isFutureDate(data.birthDate, ctx.now)) return { error: "birth_date_in_future" };
-      if (belowMinAge(data.birthDate, event)) return { error: "below_min_age", minAge: event.minAge };
-      return allocate(tx, event, { email, ...data }, ctx);
+      const profile = await getProfile(tx, email);
+      const applicant = data ?? profile;
+      if (!applicant) return { error: "profile_required" };
+      if (isFutureDate(applicant.birthDate, ctx.now)) return { error: "birth_date_in_future" };
+      if (belowMinAge(applicant.birthDate, event)) return { error: "below_min_age", minAge: event.minAge };
+      const allocated = await allocate(tx, event, { email, ...applicant }, ctx);
+      // Повтор («existing») данных формы не применяет (D-007), значит и профиль из них не берёт.
+      if (!profile && data && allocated.result !== "existing") await createProfileIfMissing(tx, email, data, ctx.now);
+      return allocated;
     },
   );
 }
