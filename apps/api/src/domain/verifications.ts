@@ -8,7 +8,7 @@ import type { VerificationRequest } from "../schemas/participant.ts";
 import { belowMinAge, isFutureDate } from "./age.ts";
 import { newVerificationCode } from "./codes.ts";
 import { lockEvent, started, type EventRow } from "./events.ts";
-import { activeRegistration, allocate, type MailContext } from "./registrations.ts";
+import { activeRegistration, allocate, type MailContext, type Verification } from "./registrations.ts";
 
 const CODE_TTL_MS = 10 * 60_000;
 const RESEND_MS = 60_000;
@@ -23,7 +23,7 @@ export async function issueVerification(db: Db, event: EventRow, input: Verifica
   if (input.purpose === "register") {
     if (started(event, now)) return { error: "registration_closed" as const };
     if (isFutureDate(input.birthDate, now)) return { error: "birth_date_in_future" as const };
-    if (belowMinAge(input.birthDate, event)) return { error: "below_min_age" as const, minAge: event.minAge! };
+    if (belowMinAge(input.birthDate, event)) return { error: "below_min_age" as const, minAge: event.minAge };
   }
   const form = input.purpose === "register" ? input : undefined;
 
@@ -74,50 +74,78 @@ export async function issueVerification(db: Db, event: EventRow, input: Verifica
   });
 }
 
-const consume = (tx: Tx, id: number, now: Date) =>
+export const consume = (tx: Tx, id: number, now: Date) =>
   tx.update(emailVerifications).set({ consumedAt: now }).where(eq(emailVerifications.id, id));
 
 /**
- * Ввод кода (SPEC, раздел 4): строка кода берётся `FOR UPDATE`, попытки считаются без гонки.
- * Верный код `register` ведёт в `allocate`; повтор уже использованного кода — `existing` (D-046).
+ * Общие проверки ввода кода (SPEC, раздел 4): строка берётся `FOR UPDATE`, попытки считаются без гонки.
+ * Неверный код тратит попытку; пятая неудача блокирует и верный код (D-007). Дальше — дело вызывающего:
+ * `confirmVerification` для `register` и `lookup`, `confirmLoginCode` для `login` (D-057).
+ */
+export async function checkCode(
+  tx: Tx,
+  id: number,
+  code: string,
+  now: Date,
+): Promise<
+  | { verification: Verification }
+  | { error: "not_found" | "code_expired" | "code_attempts_exceeded" }
+  | { error: "code_invalid"; attemptsLeft: number }
+> {
+  const [verification] = await tx.select().from(emailVerifications).where(eq(emailVerifications.id, id)).for("update");
+  if (!verification) return { error: "not_found" as const };
+  if (verification.expiresAt <= now) return { error: "code_expired" as const };
+  if (verification.attempts >= MAX_CODE_ATTEMPTS) return { error: "code_attempts_exceeded" as const };
+  if (verification.code !== code) {
+    await tx
+      .update(emailVerifications)
+      .set({ attempts: sql`${emailVerifications.attempts} + 1` })
+      .where(eq(emailVerifications.id, id));
+    return { error: "code_invalid" as const, attemptsLeft: MAX_CODE_ATTEMPTS - verification.attempts - 1 };
+  }
+  return { verification };
+}
+
+/**
+ * Ввод кода (SPEC, раздел 4). Верный код `register` ведёт в `allocate`; повтор уже использованного кода — `existing` (D-046).
  * Верный код `lookup` — неотменённая регистрация этого email или `registration_not_found` (D-039).
+ * Код `login` здесь не обслуживается: он проходит только через маршрут участника, а на этом — `not_found` (D-057).
  */
 export async function confirmVerification(db: Db, id: number, code: string, ctx: MailContext) {
   return withTx(db, async (tx) => {
-    const [verification] = await tx
-      .select()
+    // Чужое назначение отвечаем как «нет такого кода» до проверки самого кода: попытки не тратятся, `allocate` не достижим.
+    const [purposeRow] = await tx
+      .select({ purpose: emailVerifications.purpose })
       .from(emailVerifications)
-      .where(eq(emailVerifications.id, id))
-      .for("update");
-    if (!verification) return { error: "not_found" as const };
-    if (verification.expiresAt <= ctx.now) return { error: "code_expired" as const };
-    if (verification.attempts >= MAX_CODE_ATTEMPTS) return { error: "code_attempts_exceeded" as const };
-    if (verification.code !== code) {
-      await tx
-        .update(emailVerifications)
-        .set({ attempts: sql`${emailVerifications.attempts} + 1` })
-        .where(eq(emailVerifications.id, id));
-      return { error: "code_invalid" as const, attemptsLeft: MAX_CODE_ATTEMPTS - verification.attempts - 1 };
-    }
+      .where(eq(emailVerifications.id, id));
+    if (purposeRow?.purpose === "login") return { error: "not_found" as const };
+
+    const checked = await checkCode(tx, id, code, ctx.now);
+    if ("error" in checked) return checked;
+    const { verification } = checked;
+    // `register` и `lookup` всегда с событием: check `email_verifications_event_check` (D-057).
+    const eventId = verification.eventId!;
 
     // `lookup` только читает: повтор того же кода снова открывает регистрацию (D-048).
     if (verification.purpose === "lookup") {
       if (!verification.consumedAt) await consume(tx, id, ctx.now);
-      const registration = await activeRegistration(tx, verification.eventId, verification.email);
+      const registration = await activeRegistration(tx, eventId, verification.email);
       if (!registration) return { error: "registration_not_found" as const };
       return { result: "found" as const, registration };
     }
 
     if (verification.consumedAt) {
-      const existing = await activeRegistration(tx, verification.eventId, verification.email);
+      const existing = await activeRegistration(tx, eventId, verification.email);
       if (!existing) return { error: "code_expired" as const };
       return { result: "existing" as const, registration: existing };
     }
 
     await consume(tx, id, ctx.now);
-    const event = await lockEvent(tx, verification.eventId);
+    const event = await lockEvent(tx, eventId);
     // Событие удалено вместе с кодами каскадом: до сюда не дойдём, но тип требует проверки.
     if (!event) return { error: "not_found" as const };
-    return allocate(tx, event, verification, ctx);
+    const { email, firstName, lastName, birthDate } = verification;
+    // У `register` форма заполнена всегда: код выдаётся только вместе с ней (`issueVerification`).
+    return allocate(tx, event, { email, firstName: firstName!, lastName: lastName!, birthDate: birthDate! }, ctx);
   });
 }

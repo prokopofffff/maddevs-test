@@ -1,7 +1,12 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { registrationFormSchema, type RegistrationForm as FormData } from "@app/api/schemas";
+import {
+  participantDataSchema,
+  registrationFormSchema,
+  type ParticipantData,
+  type RegistrationForm as FormData,
+} from "@app/api/schemas";
 import { useEffect } from "react";
-import { useForm, type FieldErrors } from "react-hook-form";
+import { useForm, type FieldErrors, type Resolver } from "react-hook-form";
 import { ApiError } from "../../api.ts";
 import { ErrorBanner } from "../../components/Banner.tsx";
 import { Icon } from "../../components/Icon.tsx";
@@ -10,7 +15,7 @@ import { todayIso } from "../../format.ts";
 
 const empty: FormData = { firstName: "", lastName: "", birthDate: "", email: "" };
 
-const hints: Record<keyof FormData, string> = {
+export const hints: Record<keyof FormData, string> = {
   firstName: "Введите имя",
   lastName: "Введите фамилию",
   birthDate: "Укажите дату рождения",
@@ -18,7 +23,7 @@ const hints: Record<keyof FormData, string> = {
 };
 
 /** Ошибка сервера, относящаяся к конкретному полю, — под полем; остальные — баннером. */
-function fieldError(error: unknown): { field: keyof FormData; text: string } | undefined {
+export function fieldError(error: unknown): { field: keyof FormData; text: string } | undefined {
   if (!(error instanceof ApiError)) return;
   if (error.code === "below_min_age") {
     return { field: "birthDate", text: `Регистрация с ${error.details.minAge} лет на день события` };
@@ -29,7 +34,7 @@ function fieldError(error: unknown): { field: keyof FormData; text: string } | u
   }
 }
 
-function FieldError({ id, children }: { id: string; children: React.ReactNode }) {
+export function FieldError({ id, children }: { id: string; children: React.ReactNode }) {
   return (
     <p className="field__error" id={id}>
       <Icon name="info" />
@@ -38,19 +43,25 @@ function FieldError({ id, children }: { id: string; children: React.ReactNode })
   );
 }
 
-/** S1-Event: форма регистрации. Значения переживают возврат с экрана кода («Изменить email»). */
-export function RegistrationForm({
-  initial,
-  pending,
-  error,
-  onSubmit,
-}: {
-  initial?: FormData;
+type Props = {
+  initial?: ParticipantData | FormData;
   pending: boolean;
   error: unknown;
-  onSubmit: (data: FormData) => void;
-}) {
-  const form = useForm<FormData>({ resolver: zodResolver(registrationFormSchema), defaultValues: initial ?? empty });
+} & (
+  | { lockedEmail?: undefined; onSubmit: (data: FormData) => void }
+  | { lockedEmail: string; onSubmit: (data: ParticipantData) => void }
+);
+
+/**
+ * S1-Event: форма регистрации. Значения переживают возврат с экрана кода («Изменить email»).
+ * С `lockedEmail` (участник вошёл, D-057) email — текст, а не поле: схема — `participantDataSchema`,
+ * наружу уходят только имя и дата рождения, адрес сервер берёт из сессии.
+ */
+export function RegistrationForm({ initial, pending, error, lockedEmail, onSubmit }: Props) {
+  // Форма держит поля с email; у вошедшего поле не отрисовано, а схема его не требует.
+  const schema = lockedEmail ? participantDataSchema : registrationFormSchema;
+  const resolver = zodResolver(schema) as unknown as Resolver<FormData>;
+  const form = useForm<FormData>({ resolver, defaultValues: { ...empty, ...initial } });
   const server = fieldError(error);
   const serverField = server?.field;
 
@@ -79,7 +90,15 @@ export function RegistrationForm({
   const email = field("email");
 
   return (
-    <form className="form" noValidate onSubmit={form.handleSubmit(onSubmit)}>
+    <form
+      className="form"
+      noValidate
+      onSubmit={form.handleSubmit(({ firstName, lastName, birthDate, email }) =>
+        lockedEmail === undefined
+          ? onSubmit({ firstName, lastName, birthDate, email })
+          : onSubmit({ firstName, lastName, birthDate }),
+      )}
+    >
       {error && !server ? <ErrorBanner>{errorText(error)}</ErrorBanner> : null}
       <div className="form-row">
         <div className={firstName.className}>
@@ -104,19 +123,29 @@ export function RegistrationForm({
         <input {...birthDate.control} type="date" autoComplete="bday" min="1900-01-01" max={todayIso()} />
         {birthDate.error}
       </div>
-      <div className={email.className}>
-        <label className="field__label" htmlFor="reg-email">
-          Email
-        </label>
-        <input {...email.control} type="email" autoComplete="email" placeholder="name@example.com" />
-        {email.error ?? (
-          <p className="field__hint" id="reg-email-hint">
-            На него придёт код подтверждения
-          </p>
-        )}
-      </div>
+      {lockedEmail === undefined ? (
+        <div className={email.className}>
+          <label className="field__label" htmlFor="reg-email">
+            Email
+          </label>
+          <input {...email.control} type="email" autoComplete="email" placeholder="name@example.com" />
+          {email.error ?? (
+            <p className="field__hint" id="reg-email-hint">
+              На него придёт код подтверждения
+            </p>
+          )}
+        </div>
+      ) : (
+        <p className="field__hint">Регистрируем на {lockedEmail}</p>
+      )}
       <button className="button button--primary button--block" type="submit" disabled={pending}>
-        {pending ? "Отправляем код…" : "Получить код"}
+        {lockedEmail === undefined
+          ? pending
+            ? "Отправляем код…"
+            : "Получить код"
+          : pending
+            ? "Регистрируем…"
+            : "Зарегистрироваться"}
       </button>
     </form>
   );

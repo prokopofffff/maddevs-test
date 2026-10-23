@@ -11,7 +11,7 @@ describe("правка и удаление события", () => {
     const res = await organizer.patch(`/api/organizer/events/${id}`, {
       title: "Митап про Postgres 17",
       description: "Новая программа.",
-      minAge: 21,
+      minAge: 16,
     });
 
     expect(res.status).toBe(200);
@@ -19,7 +19,7 @@ describe("правка и удаление события", () => {
       id,
       title: "Митап про Postgres 17",
       description: "Новая программа.",
-      minAge: 21,
+      minAge: 16,
       startsAt: "2026-11-20T12:00:00.000Z",
       timezone: "Asia/Novosibirsk",
       limit: 50,
@@ -27,7 +27,7 @@ describe("правка и удаление события", () => {
     expect((await organizer.get(`/api/organizer/events/${id}`)).body.event).toMatchObject({
       title: "Митап про Postgres 17",
       description: "Новая программа.",
-      minAge: 21,
+      minAge: 16,
     });
   });
 
@@ -37,10 +37,10 @@ describe("правка и удаление события", () => {
     const { id } = (await organizer.post("/api/organizer/events", eventInput())).body.event;
     t.clock.set("2026-11-20T12:00:00Z"); // ровно момент начала
 
-    const res = await organizer.patch(`/api/organizer/events/${id}`, { title: "Запись митапа", minAge: null });
+    const res = await organizer.patch(`/api/organizer/events/${id}`, { title: "Запись митапа", minAge: 0 });
 
     expect(res.status).toBe(200);
-    expect(res.body.event).toMatchObject({ title: "Запись митапа", minAge: null, started: true });
+    expect(res.body.event).toMatchObject({ title: "Запись митапа", minAge: 0, started: true });
   });
 
   it("смена только пояса сохраняет момент начала", async () => {

@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router";
 import { api, client } from "../api.ts";
 import { ErrorBanner } from "../components/Banner.tsx";
-import { Brand } from "../components/Brand.tsx";
+import { Icon } from "../components/Icon.tsx";
 import { errorText } from "../errors.ts";
 import { homeFor, meKey, useMe } from "../session.ts";
 
@@ -45,7 +45,10 @@ export function AuthPage({ mode }: { mode: Mode }) {
 
   return (
     <div className="auth s5-auth">
-      <Brand />
+      <Link className="back-link" to="/">
+        <Icon name="back" />
+        Все события
+      </Link>
       <h1 className="heading auth__title">{copy[mode].title}</h1>
       <nav className="tabs" aria-label="Вход или регистрация">
         <Link className="tabs__link" to="/login" aria-current={mode === "login" ? "page" : undefined}>

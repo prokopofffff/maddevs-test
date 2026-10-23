@@ -4,7 +4,6 @@ import { Link, useParams } from "react-router";
 import type { ParticipantData } from "@app/api/schemas";
 import { api, ApiError, client } from "../api.ts";
 import { ErrorBanner } from "../components/Banner.tsx";
-import { Brand } from "../components/Brand.tsx";
 import { ConfirmDialog } from "../components/ConfirmDialog.tsx";
 import { Icon } from "../components/Icon.tsx";
 import { PageSkeleton } from "../components/Skeleton.tsx";
@@ -62,7 +61,6 @@ export function MyRegistrationPage() {
 
   return (
     <div className="page page--split">
-      <Brand />
       {registration.isError ? (
         <ErrorBanner title="Не удалось загрузить регистрацию">{errorText(registration.error)}</ErrorBanner>
       ) : (

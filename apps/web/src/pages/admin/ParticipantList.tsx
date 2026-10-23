@@ -34,7 +34,7 @@ export function ParticipantList({
 }: {
   eventId: string;
   timezone: string;
-  minAge: number | null;
+  minAge: number;
   /** Что показать, пока регистраций нет совсем. */
   empty: ReactNode;
   readOnly?: boolean;

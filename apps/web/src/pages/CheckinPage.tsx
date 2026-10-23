@@ -175,7 +175,7 @@ export function CheckinPage() {
                   {result.card.firstName} {result.card.lastName}
                 </h2>
               </div>
-              {result.card.belowMinAge && e.minAge && (
+              {result.card.belowMinAge && e.minAge > 0 && (
                 <div className="banner banner--warning s9-alert">
                   <Icon name="warning" />
                   <div className="banner__body">

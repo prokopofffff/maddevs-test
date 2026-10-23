@@ -1,9 +1,9 @@
 import { formatTicketCode } from "../../schemas/ticket.ts";
 import { formatEventTime, utcOffset } from "../../time.ts";
-import { BRAND, buttonBlock, codeBlock, eventBlock, headingBlock, layout, type Rendered } from "./layout.ts";
+import { BRAND, buttonBlock, codeBlock, eventBlock, headingBlock, layout, placeLine, type EventPlace, type Rendered } from "./layout.ts";
 
 export interface PromotedMail {
-  event: { title: string; startsAt: Date; timezone: string };
+  event: { title: string; startsAt: Date; timezone: string } & EventPlace;
   firstName: string;
   ticketCode: string;
   link: string;
@@ -12,6 +12,7 @@ export interface PromotedMail {
 /** «Для вас освободилось место»: повышение из листа ожидания, билет и личная ссылка (рамка `S10-Email`, s10b). */
 export function promotedMail({ event, firstName, ticketCode, link }: PromotedMail): Rendered {
   const time = formatEventTime(event.startsAt, event.timezone);
+  const place = placeLine(event);
   const ticket = formatTicketCode(ticketCode);
   const story =
     "Один из участников отказался от участия, и место перешло к вам по очереди. Регистрация подтверждена, ваш билет — ниже.";
@@ -24,6 +25,7 @@ export function promotedMail({ event, firstName, ticketCode, link }: PromotedMai
       "",
       event.title,
       time,
+      place,
       "",
       story,
       "",
@@ -37,7 +39,7 @@ export function promotedMail({ event, firstName, ticketCode, link }: PromotedMai
     html: layout(
       [
         headingBlock(`${firstName}, вы были в листе ожидания`, "Для вас освободилось место"),
-        eventBlock(event.title, time, story),
+        eventBlock(event.title, time, story, place),
         codeBlock("Код билета", "Покажите на входе", ticket),
         buttonBlock("Моя регистрация", link, note),
       ],

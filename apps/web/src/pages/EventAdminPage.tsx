@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 import { Link, useParams } from "react-router";
 import { api, ApiError, client } from "../api.ts";
+import { AgeBadge } from "../components/AgeBadge.tsx";
 import { ErrorBanner, OfflineBanner } from "../components/Banner.tsx";
 import { Icon } from "../components/Icon.tsx";
 import { PageSkeleton } from "../components/Skeleton.tsx";
@@ -52,11 +53,9 @@ export function EventAdminPage() {
       </Link>
       <div className="page-header">
         <div className="page-header__group">
-          {e.minAge && (
-            <div className="event-header__badges">
-              <span className="badge badge--age">{e.minAge}+</span>
-            </div>
-          )}
+          <div className="event-header__badges">
+            <AgeBadge minAge={e.minAge} />
+          </div>
           <h1 className="heading page-header__title">{e.title}</h1>
           <p className="page-header__meta">
             <Icon name="calendar" />

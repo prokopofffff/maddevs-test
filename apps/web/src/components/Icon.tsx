@@ -40,6 +40,12 @@ const paths = {
   offline: (
     <path d="M3 3l14 14M7.2 7.6A8.5 8.5 0 0 0 3 10M16.9 9.9A8.5 8.5 0 0 0 11 6.6M6.7 12.4a5 5 0 0 1 3.1-1.2M13.3 12.4a5 5 0 0 0-1-.7M10 15.5v.1" />
   ),
+  search: (
+    <>
+      <circle cx="9" cy="9" r="5.5" />
+      <path d="M13.2 13.2L17 17" />
+    </>
+  ),
   plus: <path d="M10 4v12M4 10h12" />,
   chevronRight: <path d="M8 5l5 5-5 5" />,
   chevronDown: <path d="M5 8l5 5 5-5" />,

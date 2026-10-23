@@ -1,3 +1,5 @@
+import type { EventCategory, EventFormat } from "@app/api/schemas";
+
 /** «25 октября 2026, 19:00 (UTC+7)» — время в поясе события с подписью смещения (D-015). */
 export function formatEventTime(startsAt: string, timeZone: string) {
   return `${formatWallTime(startsAt, timeZone)} (${utcOffset(startsAt, timeZone)})`;
@@ -45,6 +47,32 @@ export function seatsLeft(n: number) {
 /** «14.03.1994» из `1994-03-14`. */
 export const formatDate = (isoDate: string) => isoDate.split("-").reverse().join(".");
 
+/** «14 марта 1994» из `1994-03-14` — дата рождения в профиле. */
+export function formatBirthDate(isoDate: string) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("ru-RU", { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" })
+      .formatToParts(new Date(`${isoDate}T00:00:00Z`))
+      .map((p) => [p.type, p.value]),
+  );
+  return `${parts.day} ${parts.month} ${parts.year}`;
+}
+
+/**
+ * Полные годы на календарную дату начала события в его поясе — то же правило, что у сервера (D-008).
+ * Нужно кнопке «в один клик» (D-065), чтобы не звать сервер за отказом, который видно заранее.
+ */
+export function ageOnEventDay(birthDate: string, event: { startsAt: string; timezone: string }) {
+  // `en-CA` даёт `YYYY-MM-DD`; сравнение `MM-DD` строкой, как на сервере.
+  const eventDay = new Intl.DateTimeFormat("en-CA", {
+    timeZone: event.timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(event.startsAt));
+  const years = Number(eventDay.slice(0, 4)) - Number(birthDate.slice(0, 4));
+  return eventDay.slice(5) < birthDate.slice(5) ? years - 1 : years;
+}
+
 /** Сегодняшняя дата `YYYY-MM-DD` по часам браузера — для `max` у поля даты рождения. */
 export function todayIso() {
   const d = new Date();
@@ -57,3 +85,20 @@ export const formatCountdown = (seconds: number) => `${Math.floor(seconds / 60)}
 /** «19:04» — время на часах пояса события. */
 export const formatClock = (at: string, timeZone: string) =>
   new Intl.DateTimeFormat("ru-RU", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(at));
+
+/** Подписи категорий события (D-059). */
+export const categoryLabel: Record<EventCategory, string> = {
+  meetup: "Митап",
+  workshop: "Воркшоп",
+  lecture: "Лекция",
+  conference: "Конференция",
+  game: "Игра",
+  other: "Другое",
+};
+
+/** «Онлайн» или город — короткая подпись места для карточек и списков (D-059). */
+export const placeText = (e: { format: EventFormat; city: string | null }) => (e.format === "online" ? "Онлайн" : (e.city ?? ""));
+
+/** «Онлайн» или «Новосибирск, ул. Ленина, 12» — полное место для страницы события (D-059). */
+export const fullPlace = (e: { format: EventFormat; city: string | null; address: string | null }) =>
+  e.format === "online" ? "Онлайн" : [e.city, e.address].filter(Boolean).join(", ");

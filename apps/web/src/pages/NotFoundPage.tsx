@@ -1,5 +1,3 @@
-import { Brand } from "../components/Brand.tsx";
-
 export function NotFoundPage({ embedded = false }: { embedded?: boolean }) {
   const body = (
     <div className="empty-state">
@@ -10,7 +8,6 @@ export function NotFoundPage({ embedded = false }: { embedded?: boolean }) {
   if (embedded) return body;
   return (
     <div className="page page--narrow">
-      <Brand />
       {body}
     </div>
   );

@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { bigint, check, date, index, integer, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { EVENT_CATEGORIES, EVENT_FORMATS } from "../schemas/event.ts";
 
 const tz = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
 
@@ -20,6 +21,27 @@ export const sessions = pgTable("sessions", {
   expiresAt: tz("expires_at").notNull(),
 });
 
+/** Сессия участника: отдельная от `sessions` сущность без строки в `users` (D-057). */
+export const participantSessions = pgTable("participant_sessions", {
+  idHash: text("id_hash").primaryKey(),
+  email: text("email").notNull(),
+  createdAt: tz("created_at").notNull(),
+  expiresAt: tz("expires_at").notNull(),
+});
+
+/**
+ * Профиль участника: имя, фамилия и дата рождения для регистрации в один клик; один на email (D-065).
+ * Отдельная таблица, а не строка `users`: у участника учётной записи нет (D-057).
+ */
+export const participantProfiles = pgTable("participant_profiles", {
+  email: text("email").primaryKey(),
+  firstName: text("first_name").notNull(),
+  lastName: text("last_name").notNull(),
+  birthDate: date("birth_date", { mode: "string" }).notNull(),
+  createdAt: tz("created_at").notNull(),
+  updatedAt: tz("updated_at").notNull(),
+});
+
 export const events = pgTable(
   "events",
   {
@@ -32,7 +54,12 @@ export const events = pgTable(
     startsAt: tz("starts_at").notNull(),
     timezone: text("timezone").notNull(),
     seatLimit: integer("seat_limit").notNull(),
-    minAge: integer("min_age"),
+    format: text("format", { enum: EVENT_FORMATS }).notNull(),
+    city: text("city"),
+    address: text("address"),
+    category: text("category", { enum: EVENT_CATEGORIES }).notNull(),
+    /** Шкала 0/6/12/16/18; 0 — без ограничения (D-060). */
+    minAge: integer("min_age").notNull().default(0),
     rescheduleCount: integer("reschedule_count").notNull().default(0),
     rescheduledAt: tz("rescheduled_at"),
     createdAt: tz("created_at").notNull(),
@@ -40,8 +67,15 @@ export const events = pgTable(
   },
   (t) => [
     index("events_organizer_starts_idx").on(t.organizerId, t.startsAt),
+    // Лента каталога идёт по `(starts_at, id)`, фильтр и список городов — по `lower(city)` (D-061).
+    index("events_starts_idx").on(t.startsAt, t.id),
+    index("events_city_idx").on(sql`lower(${t.city})`),
     check("events_seat_limit_check", sql`${t.seatLimit} >= 1`),
-    check("events_min_age_check", sql`${t.minAge} between 1 and 120`),
+    check("events_min_age_check", sql`${t.minAge} in (0, 6, 12, 16, 18)`),
+    check(
+      "events_place_check",
+      sql`(${t.format} = 'offline' and ${t.city} is not null and ${t.address} is not null) or (${t.format} = 'online' and ${t.city} is null and ${t.address} is null)`,
+    ),
   ],
 );
 
@@ -67,6 +101,8 @@ export const registrations = pgTable(
   },
   (t) => [
     index("registrations_event_status_idx").on(t.eventId, t.status),
+    // «Мои регистрации» читают все строки email, свежие первыми (D-057).
+    index("registrations_email_created_idx").on(t.email, t.createdAt.desc()),
     uniqueIndex("registrations_event_email_active_key")
       .on(t.eventId, t.email)
       .where(sql`${t.status} <> 'cancelled'`),
@@ -106,16 +142,17 @@ export const correctionRequests = pgTable(
   ],
 );
 
-/** Коды подтверждения email; `register` хранит данные формы до верного кода (D-007, D-039). */
+/**
+ * Коды подтверждения email; `register` хранит данные формы до верного кода (D-007, D-039).
+ * У `login` события нет: `event_id` пуст ровно у него (D-057).
+ */
 export const emailVerifications = pgTable(
   "email_verifications",
   {
     id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
-    eventId: uuid("event_id")
-      .notNull()
-      .references(() => events.id, { onDelete: "cascade" }),
+    eventId: uuid("event_id").references(() => events.id, { onDelete: "cascade" }),
     email: text("email").notNull(),
-    purpose: text("purpose", { enum: ["register", "lookup"] }).notNull(),
+    purpose: text("purpose", { enum: ["register", "lookup", "login"] }).notNull(),
     firstName: text("first_name"),
     lastName: text("last_name"),
     birthDate: date("birth_date", { mode: "string" }),
@@ -125,7 +162,14 @@ export const emailVerifications = pgTable(
     consumedAt: tz("consumed_at"),
     createdAt: tz("created_at").notNull(),
   },
-  (t) => [index("email_verifications_event_email_created_idx").on(t.eventId, t.email, t.createdAt.desc())],
+  (t) => [
+    index("email_verifications_event_email_created_idx").on(t.eventId, t.email, t.createdAt.desc()),
+    // Минута между кодами и гашение прежнего у `login` идут по email (D-057).
+    index("email_verifications_login_idx")
+      .on(t.email, t.createdAt.desc())
+      .where(sql`${t.purpose} = 'login'`),
+    check("email_verifications_event_check", sql`(${t.purpose} = 'login') = (${t.eventId} is null)`),
+  ],
 );
 
 /** Письма ставятся в транзакции действия и уходят циклом отправки (D-013). */

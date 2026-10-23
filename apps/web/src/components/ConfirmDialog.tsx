@@ -8,6 +8,8 @@ interface ConfirmDialogProps {
   cancelLabel: string;
   pending?: boolean;
   error?: string;
+  /** Содержимое между текстом и кнопками — например, список затронутого. */
+  children?: React.ReactNode;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -16,7 +18,7 @@ interface ConfirmDialogProps {
  * Диалог подтверждения опасного действия (`c-dialog`). Фокус — на безопасной кнопке,
  * Escape закрывает, после закрытия фокус возвращается туда, откуда диалог открыли.
  */
-export function ConfirmDialog({ title, text, confirmLabel, cancelLabel, pending, error, onConfirm, onCancel }: ConfirmDialogProps) {
+export function ConfirmDialog({ title, text, confirmLabel, cancelLabel, pending, error, children, onConfirm, onCancel }: ConfirmDialogProps) {
   const id = useId();
   const safe = useRef<HTMLButtonElement>(null);
 
@@ -43,9 +45,11 @@ export function ConfirmDialog({ title, text, confirmLabel, cancelLabel, pending,
         <h2 className="dialog__title" id={`${id}-title`}>
           {title}
         </h2>
-        <p className="dialog__text" id={`${id}-text`}>
-          {text}
-        </p>
+        {/* Текст и перечень внутри одного описания: скринридер читает и список затронутого. */}
+        <div className="dialog__body" id={`${id}-text`}>
+          <p className="dialog__text">{text}</p>
+          {children}
+        </div>
         {error && <ErrorBanner>{error}</ErrorBanner>}
         <div className="dialog__actions">
           <button className="button button--danger" type="button" disabled={pending} onClick={onConfirm}>

@@ -6,8 +6,10 @@
 
 Организатор создаёт **событие** с **лимитом мест** и делится ссылкой. **Участник** по ссылке регистрируется по email: получает место с **билетом** или встаёт в **лист ожидания**. На входе организатор делает **чекин** по коду билета и видит счётчики live.
 
+Главная `/` — публичный каталог всех событий с поиском и фильтрами (D-056). Участник может войти по коду на email: видит свои регистрации и регистрируется без кода (D-057, D-058).
+
 - Карта решений: [«Карта: сервис регистрации на мероприятия»](https://github.com/prokopofffff/maddevs-test/issues/1).
-- Вне рамок — раздел Out of scope карты: оплата, публичный каталог, реальный почтовый провайдер, деплой, QR, сброс пароля, роль волонтёра, отмена события с письмами (D-035).
+- Вне рамок — раздел Out of scope карты: оплата, реальный почтовый провайдер, деплой, QR, сброс пароля, роль волонтёра, отмена события с письмами (D-035). Также вне рамок: ссылка на трансляцию, справочник городов, геокодинг (D-059).
 - Стек: Node 22 + pnpm (D-003), Hono (D-004), PostgreSQL через Drizzle 0.45 на postgres.js (D-009), Mailpit как SMTP (D-002), фронт Vite + React (D-024), всё локально в `docker compose`.
 - Один процесс API обслуживает и API, и собранный фронт (D-024). Rate limit и пинок отправки рассчитаны на один процесс (D-006, D-014).
 
@@ -59,21 +61,46 @@
 | `starts_at` | `timestamptz` | момент начала (D-015) |
 | `timezone` | `text` | IANA-пояс (D-015) |
 | `seat_limit` | `integer` | `check (seat_limit >= 1)` (D-032) |
-| `min_age` | `integer null` | `check (min_age between 1 and 120)` (D-008) |
+| `format` | `text` | `offline` \| `online` (D-059) |
+| `city` | `text null` | у `offline` обязателен, 1–100 символов после trim и схлопывания пробелов; у `online` — `null` (D-059) |
+| `address` | `text null` | у `offline` обязателен, 1–300 символов после trim; у `online` — `null` (D-059) |
+| `category` | `text` | `meetup` \| `workshop` \| `lecture` \| `conference` \| `game` \| `other` (D-059) |
+| `min_age` | `integer` | `not null default 0`, `check (min_age in (0, 6, 12, 16, 18))`; 0 — без ограничения (D-008, D-060) |
 | `reschedule_count` | `integer` | по умолчанию 0 (D-016) |
 | `rescheduled_at` | `timestamptz null` | момент последнего переноса (D-018) |
 | `created_at`, `updated_at` | `timestamptz` | |
 
-Индекс `(organizer_id, starts_at)`. Конца события нет (D-015).
+Индексы: `(organizer_id, starts_at)`; `(starts_at, id)` — лента каталога и курсор; `(lower(city))` — фильтр и список городов (D-061). Check-ограничение на `format`, `city` и `address`: у `offline` город и адрес заданы, у `online` оба `null` (D-059). Конца события нет (D-015).
+
+### `participant_sessions` — вход участника (D-057)
+
+| Колонка | Тип | Ограничения |
+|---|---|---|
+| `id_hash` | `text` | PK; SHA-256 от значения cookie `psid` (D-040) |
+| `email` | `text` | обрезанный, в нижнем регистре |
+| `created_at`, `expires_at` | `timestamptz` | `expires_at = created_at + 30 дней` (D-005) |
+
+Строки в `users` у участника нет. Сессия участника и сессия организатора независимы: один email может иметь обе.
+
+### `participant_profiles` — профиль участника (D-065)
+
+| Колонка | Тип | Ограничения |
+|---|---|---|
+| `email` | `text` | PK; обрезанный, в нижнем регистре, как в `participant_sessions` |
+| `first_name`, `last_name` | `text` | not null |
+| `birth_date` | `date` | not null |
+| `created_at`, `updated_at` | `timestamptz` | not null |
+
+Имя, фамилия и дата рождения для регистрации в один клик; один профиль на email, внешних ключей нет. Создаётся первым `PUT /participant/profile` или первой регистрацией под сессией с данными в теле. Строки `registrations` хранят собственные копии данных (D-017, D-031): профиль их не заменяет, а правка профиля переписывает копии в текущих регистрациях (раздел 4).
 
 ### `email_verifications` — коды подтверждения
 
 | Колонка | Тип | Ограничения |
 |---|---|---|
 | `id` | `bigint identity` | PK |
-| `event_id` | `uuid` | FK → `events`, `on delete cascade` |
+| `event_id` | `uuid null` | FK → `events`, `on delete cascade`; у `register` и `lookup` задан, у `login` — `null` (check) (D-057) |
 | `email` | `text` | |
-| `purpose` | `text` | `register` \| `lookup` (D-039) |
+| `purpose` | `text` | `register` \| `lookup` (D-039) \| `login` (D-057) |
 | `first_name`, `last_name` | `text null` | данные формы; только у `register` |
 | `birth_date` | `date null` | только у `register` |
 | `code` | `text` | 6 цифр (D-007, D-040) |
@@ -82,7 +109,7 @@
 | `consumed_at` | `timestamptz null` | момент верного ввода |
 | `created_at` | `timestamptz` | |
 
-Индекс `(event_id, email, created_at desc)` — для проверки «не чаще раза в минуту». Новый код для той же пары (событие, email) и того же `purpose` гасит прежние: их `expires_at` ставится в момент выдачи нового (D-039). Старые строки не чистим.
+Индекс `(event_id, email, created_at desc)` — для проверки «не чаще раза в минуту». Новый код для той же пары (событие, email) и того же `purpose` гасит прежние: их `expires_at` ставится в момент выдачи нового (D-039). У `login` пары нет: минута и гашение считаются по `email` среди кодов `login` (D-057). Старые строки не чистим. Частичный индекс `email_verifications_login_idx (email, created_at desc) WHERE purpose = 'login'` — для минуты и гашения среди кодов `login` (D-057).
 
 ### `registrations`
 
@@ -106,7 +133,8 @@
 - `(event_id, status)` — подсчёт счётчиков (D-011);
 - частичный unique `(event_id, email) WHERE status <> 'cancelled'` — одна неотменённая регистрация (D-011);
 - частичный unique `(ticket_code) WHERE ticket_code IS NOT NULL` (D-022);
-- `(event_id, verified_at, id) WHERE status = 'waitlisted'` — порядок листа ожидания (D-012).
+- `(event_id, verified_at, id) WHERE status = 'waitlisted'` — порядок листа ожидания (D-012);
+- `(email, created_at desc)` — «Мои регистрации» и `lastData` участника (D-057, D-058).
 
 **Состояния регистрации.** Все переходы, кроме чекина, идут под блокировкой строки события (раздел 3).
 
@@ -169,6 +197,8 @@
 2. Есть неотменённая регистрация этого email → вернуть её с результатом `existing`. Данные формы не применяются, писем нет (D-007).
 3. Иначе новая строка с `verified_at = now`. Если подтверждённых < лимита и лист ожидания пуст — `confirmed`, `confirmed_at = now`, новый код билета, письмо `confirmed`. Иначе `waitlisted`, письмо `waitlisted` (D-011).
 
+`allocate` вызывают и `confirm` с `purpose = register`, и регистрация без кода под сессией участника — та же функция в той же транзакции (D-058).
+
 **`fillFreeSeats(tx, event, now)`** — после отказа подтверждённого и после изменения лимита (D-012, D-032):
 1. `started` → ничего (D-033).
 2. `n = seat_limit − confirmed`; если `n <= 0` — ничего.
@@ -184,14 +214,14 @@
 5. Был `confirmed` → `fillFreeSeats`.
 
 **`updateEvent(tx, event, patch, now)`** — правка организатором:
-- Название, описание и минимальный возраст правятся всегда.
+- Название, описание, формат, город, адрес, категория и минимальный возраст правятся всегда. Смена `format` с `offline` на `online` обнуляет город и адрес; смена на `offline`, после которой у события нет города или адреса, — `400 validation_failed` с `issues` по `city` и `address` (пара проверяется по слитым значениям). Смена адреса письма не ставит: перенос — только смена времени (D-016, D-059).
 - Изменение момента начала — **перенос**: только до начала и только на будущий момент, иначе `event_started` / `starts_in_past`. Сначала `reschedule_count + 1` и `rescheduled_at = now`, затем каждой неотменённой регистрации письмо `rescheduled` (D-016). Смена только пояса при том же моменте — не перенос.
 - Изменение лимита — только до начала, иначе `event_started` (D-033). Затем `fillFreeSeats` (D-032).
 - Перенос или повышение минимального возраста ничего не отменяют. Ответ содержит `belowMinAgeCount` — число неотменённых регистраций, не проходящих по возрасту на день события (D-017).
 
 **`deleteEvent(tx, event)`** — только если у события нет ни одной строки в `registrations`, включая отменённые; иначе `event_has_registrations` (D-035). Коды подтверждения удаляются каскадом. Письма с кодом, уже стоящие в outbox, уходят как есть.
 
-**Возраст на день события** — полные годы между `birth_date` и календарной датой `starts_at` в поясе события. «Младше минимального» — `min_age` задан и возраст меньше (D-008). Проверяется при запросе кода на регистрацию; после этого только показывается (D-017).
+**Возраст на день события** — полные годы между `birth_date` и календарной датой `starts_at` в поясе события. «Младше минимального» — `min_age > 0` и возраст меньше (D-008, D-060). Проверяется при запросе кода на регистрацию; после этого только показывается (D-017).
 
 **Код билета** — 8 символов `crypto.randomInt` из `0123456789ABCDEFGHJKMNPQRSTVWXYZ`, показ `XXXX-XXXX`. Нормализация ввода: верхний регистр, без пробелов и дефисов, `O → 0`, `I`/`L → 1` (D-022).
 
@@ -223,7 +253,7 @@ RETURNING …
 - `404 not_found` — нет объекта, чужое событие или маршрут не для этой роли (D-005, D-030);
 - `429 rate_limited` + `Retry-After` (D-006).
 
-**Корзины rate limit** (D-006, D-053): `auth` — 10/мин на signup и login; `public` — 20/мин на действия участника (помечены ★); `global` — 300/мин на все запросы под `/api`, статика фронта не считается. Значения из env. Ключ — IP: адрес сокета, а при `TRUST_PROXY=1` — последний адрес `X-Forwarded-For`, его дописал прокси. Окно — фиксированная минута от первого запроса. Ответы несут `RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset`; `429` ещё и `Retry-After` в секундах — из него интерфейс берёт N в «Слишком много запросов, попробуйте через N секунд».
+**Корзины rate limit** (D-006, D-053): `auth` — 10/мин на signup и login; `public` — 20/мин на действия участника (помечены ★, в том числе `POST /participant/verifications`, `POST /participant/verifications/:id/confirm`, `PUT /participant/profile` и `POST /events/:id/registrations`); `global` — 300/мин на все запросы под `/api`, статика фронта не считается. Значения из env. Ключ — IP: адрес сокета, а при `TRUST_PROXY=1` — последний адрес `X-Forwarded-For`, его дописал прокси. Окно — фиксированная минута от первого запроса. Ответы несут `RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset`; `429` ещё и `Retry-After` в секундах — из него интерфейс берёт N в «Слишком много запросов, попробуйте через N секунд».
 
 ### Вход (D-005)
 
@@ -243,7 +273,7 @@ Cookie `sid`: httpOnly, `SameSite=Lax`, `Path=/`, `Max-Age` 30 дней, `Secure
 | Метод и путь | Тело | Ответ | Ошибки |
 |---|---|---|---|
 | `GET /organizer/events` | — | `200 {events: [{id, title, startsAt, timezone, started, counts}]}`, по `starts_at` | — |
-| `POST /organizer/events` | `eventInputSchema {title, description, startsLocal, timezone, limit, minAge?}` | `201 {event}` | `400 starts_in_past` |
+| `POST /organizer/events` | `eventInputSchema {title, description, startsLocal, timezone, limit, format, city?, address?, category, minAge?}` | `201 {event}` | `400 starts_in_past` |
 | `GET /organizer/events/:id` | — | `200 {event, counts, publicUrl, registrationCount}` | `404` |
 | `PATCH /organizer/events/:id` | `eventPatchSchema` (поля `eventInputSchema`, все необязательны) | `200 {event, counts, rescheduled, belowMinAgeCount}` | `409 event_started`, `400 starts_in_past` |
 | `DELETE /organizer/events/:id` | — | `204` | `409 event_has_registrations` |
@@ -255,7 +285,32 @@ Cookie `sid`: httpOnly, `SameSite=Lax`, `Path=/`, `Max-Age` 30 дней, `Secure
 
 `counts` = `{confirmed, limit, waitlisted, checkedIn}`. `registrationCount` — число строк регистраций, включая отменённые: по нему форма решает, показывать ли «Удалить» (D-035). Список регистраций отдаёт всех, включая отменённых, в порядке «подтверждённые по `confirmed_at` → лист ожидания по номеру → отменённые по `cancelled_at`» (D-051); фильтр — на клиенте.
 
-Валидация события: `title` 1–200, `description` 0–5000, `timezone` из `Intl.supportedValuesOf('timeZone')`, `limit` целое 1–100 000, `minAge` целое 1–120 или `null`. Новое событие — только в будущем.
+Валидация события: `title` 1–200, `description` 0–5000, `timezone` из `Intl.supportedValuesOf('timeZone')`, `limit` целое 1–100 000, `format` и `category` обязательны, умолчаний нет; `city` и `address` обязательны при `offline` и не передаются при `online` (D-059); `minAge` — одно из 0, 6, 12, 16, 18, по умолчанию 0, иное значение — `400 validation_failed` (D-060). Новое событие — только в будущем. Ответы `{event}` и `GET /organizer/events/:id` отдают и новые поля.
+
+### Каталог (D-056, D-061)
+
+Без входа. Все маршруты — публичные, в ответах нет ни email, ни имён участников.
+
+`GET /events` — query-параметры:
+
+| Параметр | Значения | Правило |
+|---|---|---|
+| `q` | до 100 символов | `ILIKE` по `title` и `description`, `%` и `_` экранируются |
+| `when` | `upcoming` (по умолчанию) \| `past` \| `today` \| `week` | `upcoming` — `starts_at > now`; `past` — `starts_at <= now`; `today` и `week` — подмножество `upcoming` |
+| `tz` | IANA-пояс посетителя | границы «сегодня» и «на неделе» (до конца седьмого дня, считая сегодняшний) считаются в этом поясе, а не в поясе события |
+| `hasSeats` | `1` | `freeSeats > 0`; событие с листом ожидания не проходит |
+| `format` | `offline` \| `online` | |
+| `city` | строка | сравнение по `lower(city)` |
+| `category` | значение перечня | |
+| `maxAge` | 0 \| 6 \| 12 \| 16 \| 18 | `min_age <= maxAge` |
+| `cursor` | непрозрачная строка | из `nextCursor` предыдущего ответа |
+
+- Порядок: `upcoming`, `today` и `week` — по возрастанию `starts_at`, `past` — по убыванию; при равных моментах — по `id`.
+- Страница — 24 события, курсор — `(starts_at, id)`.
+- Ответ: `200 {events: [{id, title, startsAt, timezone, format, city, category, minAge, freeSeats, started}], nextCursor}`; `nextCursor` — `null` на последней странице. Адреса и описания в списке нет. `freeSeats` — как в `GET /events/:id` (D-026).
+- Ошибки: непарсящийся `cursor` и неизвестный `tz` (как и значение фильтра вне перечня) — `400 validation_failed` с `issues` по пути `cursor` или `tz`. «Известный» `tz` — любое имя, которое принимает `Intl.DateTimeFormat` рантайма, а не список `Intl.supportedValuesOf`: Safari присылает `Asia/Kolkata`, `Europe/Kyiv`, `Asia/Ho_Chi_Minh`, которых в старом списке Node нет (D-061). У `timezone` события набор уже — только имена из списка, показанного в форме.
+
+`GET /events/cities` — `200 {cities: string[]}`: города офлайн-событий из `upcoming`, без учёта регистра; показывается написание самого раннего события, порядок по алфавиту.
 
 ### Участник
 
@@ -263,7 +318,7 @@ Cookie `sid`: httpOnly, `SameSite=Lax`, `Path=/`, `Max-Age` 30 дней, `Secure
 
 | Метод и путь | Тело | Ответ | Ошибки |
 |---|---|---|---|
-| `GET /events/:id` | — | `200 {id, title, description, startsAt, timezone, minAge, freeSeats, started}` | `404` |
+| `GET /events/:id` | — | `200 {id, title, description, startsAt, timezone, format, city, address, category, minAge, freeSeats, started}`; под сессией участника ещё `myRegistration: {token, status} \| null` — неотменённая регистрация этого email на это событие, иначе `null`; у гостя без сессии участника поля нет (D-058) | `404` |
 | ★ `POST /events/:id/verifications` | `verificationRequestSchema`: `{purpose: "register", email, firstName, lastName, birthDate}` или `{purpose: "lookup", email}` | `201 {verificationId, expiresAt, resendAfter}` | `409 registration_closed` (только `register`), `422 below_min_age {minAge}`, `429 code_resend_too_soon {retryAfter}` |
 | ★ `POST /verifications/:id/confirm` | `confirmCodeSchema {code}` | `register`: `200 {result: "confirmed" \| "waitlisted" \| "existing", token, status, waitlistPosition?}`; `lookup`: `200 {result: "found", token}` | `400 code_invalid {attemptsLeft}`, `410 code_expired`, `410 code_attempts_exceeded`, `409 registration_closed`, `404 registration_not_found` (`lookup`) |
 | `GET /registrations/:token` | — | `200 {event: {id, title, startsAt, timezone, started}, status, email, firstName, lastName, birthDate, ticketCode, waitlistPosition?, checkedInAt, cancelledAt, pendingCorrection?}`; `ticketCode` — `null`, если регистрация не подтверждена; `pendingCorrection` = `{firstName, lastName, birthDate, createdAt}` — только пока заявка ждёт | `404` |
@@ -288,6 +343,33 @@ Cookie `sid`: httpOnly, `SameSite=Lax`, `Path=/`, `Max-Age` 30 дней, `Secure
 
 `participantDataSchema` — общая для формы регистрации и формы исправления (D-031): имя и фамилия 1–100 после trim, `birthDate` — существующая дата от 1900-01-01. «Не в будущем» сервер проверяет по своим часам: `400 validation_failed` с `issues: [{path: "birthDate", message: "in_future"}]`; форма — атрибутом `max`.
 
+### Вход участника (D-057)
+
+Сессия участника — отдельная сущность: `requireUser` и `requireRole` её не принимают, на `/organizer/*` и `/support/*` она даёт `401`. Cookie `psid`: httpOnly, `SameSite=Lax`, `Path=/`, `Max-Age` 30 дней, `Secure` при `COOKIE_SECURE=1`.
+
+| Метод и путь | Тело | Ответ | Ошибки |
+|---|---|---|---|
+| ★ `POST /participant/verifications` | `{email}` | `201 {verificationId, expiresAt, resendAfter}`; код `login` уходит на любой email (D-048) | `429 code_resend_too_soon {retryAfter}` |
+| ★ `POST /participant/verifications/:id/confirm` | `{code}` | `200 {email}` + cookie `psid` | `400 code_invalid {attemptsLeft}`, `410 code_expired`, `410 code_attempts_exceeded`, `404 not_found` — код другого назначения |
+| `GET /participant/me` | — | `200 {email, profile: {firstName, lastName, birthDate} \| null, lastData: {firstName, lastName, birthDate} \| null}` — `profile` из `participant_profiles` (D-065), `lastData` — данные последней по `created_at` регистрации этого email, предзаполнение первой формы профиля | `401` |
+| ★ `PUT /participant/profile` | `{firstName, lastName, birthDate, cancelConflicts?: boolean}` | `200 {profile: {firstName, lastName, birthDate}, updated, cancelled: [{id, title}]}` — `id` и `title` события; `updated` — число регистраций, в которых данные реально изменились | `401`, `400 validation_failed` (в том числе `birthDate` `in_future`), `409 profile_conflicts {events: [{id, title, startsAt, timezone, minAge}]}` |
+| `POST /participant/logout` | — | `204`, сессия и cookie удалены | — |
+| `GET /participant/registrations` | — | `200 {registrations: [{token, status, waitlistPosition?, ticketCode, checkedInAt, cancelledAt, event: {id, title, startsAt, timezone, format, city, started}}]}` | `401` |
+
+Коды `login` проходят только через `POST /participant/verifications/:id/confirm`; на `POST /verifications/:id/confirm` код `login` даёт `404 not_found`, и наоборот для `register` и `lookup`. Выдача кода и подтверждение — как у других назначений: 10 минут, 5 попыток, минута между кодами по email, новый код гасит прежний (D-007, D-039). Повтор верного кода `login` в пределах его жизни снова отвечает `200 {email}` и ставит новую сессию, как повтор `lookup` (D-048): вторая вкладка не получает ошибку, а лишняя сессия безвредна.
+
+**Профиль** (D-065). `PUT /participant/profile` — создание и правка одним маршрутом. Затрагиваются неотменённые регистрации этого email на события, которые ещё не начались, без чекина: в них переписываются `first_name`, `last_name`, `birth_date`; отменённые, чекинутые и на начавшихся событиях остаются как были. Конфликт — затронутая регистрация, у которой дата рождения действительно меняется и новая не проходит по `min_age` на день события. Регистрация, которая не проходит по возрасту только из-за повышенного организатором `min_age`, остаётся (D-017): правка имени её не отменяет, а меняет данные в ней. Есть конфликты и нет `cancelConflicts: true` — `409 profile_conflicts`, ничего не меняется (в том числе профиль, даже первый). С `cancelConflicts: true` конфликтные регистрации отменяются тем же `cancel`, что отказ по личной ссылке (раздел 3: письмо `cancelled`, первый из листа ожидания получает место и письмо `promoted`), остальные обновляются, профиль сохраняется — в одной транзакции. Ожидающие заявки на исправление всех записанных и отменённых регистраций снимаются (`withdrawn`, D-031), даже если значения совпали с профилем: профиль новее заявки. Письма об изменении самих данных нет. Блокировки (D-011): сначала строка профиля `FOR UPDATE` (нет строки — вставляется), затем затронутые события `FOR UPDATE` по возрастанию `id`, затем регистрации перечитываются. Регистрация в один клик читает профиль `FOR SHARE` до блокировки события, поэтому она либо видит новые данные, либо попадает в правку; профиль после блокировки события не берётся. Все транзакции, блокирующие несколько событий (включая проход напоминаний), берут их по возрастанию `id`.
+
+`GET /participant/registrations` отдаёт все строки этого email, включая отменённые: повторная регистрация после отказа даёт вторую строку, видны обе (D-007). Порядок — по `starts_at` возрастанию, внутри одного события по `created_at`, деление на «Текущие» и «Прошедшие» — на клиенте. `ticketCode` — `null`, если регистрация не `confirmed`; `waitlistPosition` — текущий номер, только у `waitlisted`.
+
+**Регистрация без кода** (D-058):
+
+| Метод и путь | Тело | Ответ | Ошибки |
+|---|---|---|---|
+| ★ `POST /events/:id/registrations` | `participantDataSchema {firstName, lastName, birthDate}` или пустой объект `{}` (тело можно не слать) — регистрация по данным профиля (D-065); email — из сессии | `200 {result: "confirmed" \| "waitlisted" \| "existing", token, status, waitlistPosition?}` — как у `confirm` с `purpose = register` | `401` без сессии, `404`, `409 registration_closed`, `409 profile_required` — тело пустое, профиля нет, `422 below_min_age {minAge}`, `400 validation_failed` |
+
+Данные из тела, если профиля ещё нет, создают его в той же транзакции — только когда регистрация прошла проверки и не оказалась повтором (`existing`). Профиль, который уже есть, при данных в теле не меняется. Проверки возраста и закрытой регистрации и `allocate` — те же, что после кода; письма `confirmed` и `waitlisted` уходят так же (раздел 3).
+
 ### Поддержка (D-030, D-031)
 
 Все маршруты требуют роль `support`, остальным — `404`. На организаторских маршрутах поддержка получает `404`: своих событий у неё нет.
@@ -297,7 +379,7 @@ Cookie `sid`: httpOnly, `SameSite=Lax`, `Path=/`, `Max-Age` 30 дней, `Secure
 | `GET /support/corrections` | — | `200 {corrections: [{id, createdAt, event: {id, title, startsAt, timezone, minAge}, email, old, new, belowMinAgeAfter}]}` — только `pending`, от старых к новым | — |
 | `POST /support/corrections/:id/accept` | — | `200 {status: "accepted"}` | `409 correction_not_pending`, `404` |
 | `POST /support/corrections/:id/reject` | `rejectSchema {reason?}` — до 500 символов после trim, пустая — без причины | `200 {status: "rejected"}` | `409 correction_not_pending`, `404` |
-| `GET /support/events` | — | `200 {events: [{id, title, organizerEmail, startsAt, timezone, minAge, counts}]}`, по `starts_at` | — |
+| `GET /support/events` | — | `200 {events: [{id, title, organizerEmail, startsAt, timezone, format, city, address, category, minAge, counts}]}`, по `starts_at` | — |
 | `GET /support/events/:id/registrations` | — | как у организатора, только чтение | `404` |
 
 Два последних маршрута — «если останется время» в тикете поддержки.
@@ -306,9 +388,12 @@ Cookie `sid`: httpOnly, `SameSite=Lax`, `Path=/`, `Max-Age` 30 дней, `Secure
 
 Каждое письмо ставится `INSERT … ON CONFLICT (dedup_key) DO NOTHING` в транзакции действия и рендерится в этот момент: снимок фактов (D-013). Шаблон — функция TypeScript `(data) → {subject, text, html}` в `apps/api/src/mail/templates/`. HTML — табличная вёрстка 600 px с токенами шаблона (D-025, рамка `S10-Email`). Время — в поясе события с подписью смещения: «25 октября 2026, 19:00 (UTC+7)» (D-015). Код билета — крупным моноширинным шрифтом, без QR (D-023). Личная ссылка — `${PUBLIC_URL}/r/<token>`.
 
+**Строка места** (D-059): в письмах `confirmed`, `promoted`, `reminder` и `rescheduled` у офлайн-события — город и адрес, у онлайн-события — «Онлайн». Письма `code` и `login_code` и письма о заявках её не содержат.
+
 | `kind` | Когда | Кому | `dedup_key` | Содержание |
 |---|---|---|---|---|
 | `code` | выдан код подтверждения | email из формы | `code:<verification_id>` | код, «действует 10 минут», название события |
+| `login_code` | выдан код входа участника (D-057) | email из формы входа | `login_code:<verification_id>` | «Код для входа: NNNNNN», «действует 10 минут» |
 | `confirmed` | `allocate` → `confirmed` | участник | `confirmed:<registration_id>` | «Место ваше», время, код билета, личная ссылка |
 | `waitlisted` | `allocate` → `waitlisted` | участник | `waitlisted:<registration_id>` | номер в листе ожидания на момент записи, время, личная ссылка с текущим номером (D-049) |
 | `promoted` | повышение | участник | `promoted:<registration_id>` | «Освободилось место», время, код билета, личная ссылка |
@@ -359,15 +444,28 @@ Cookie `sid`: httpOnly, `SameSite=Lax`, `Path=/`, `Max-Age` 30 дней, `Secure
 
 | Маршрут | Рамки шаблона | API | Состояния и заметки |
 |---|---|---|---|
-| `/e/:eventId` | `S1-Event` (s1a–s1d), `S2-Code` (s2a–s2d), `S3-Result` (s3a–s3c) | `GET /events/:id`, `POST …/verifications`, `POST /verifications/:id/confirm` | «Осталось N мест» / «Мест нет — вы встанете в лист ожидания» (D-026); ошибка возраста; ожидание кода с таймером повтора; неверный и истёкший код; результат «Место ваше» / «Вы №N в листе ожидания» / «Вы уже зарегистрированы» со ссылкой на `/r/:token`. Раскрывашка «Уже регистрировались?» — `lookup`. После начала: «Событие началось — регистрация закрыта», виден только `lookup` (D-034); рамки нет, собирается из `c-banners` |
+| `/` | рамки нет, из токенов и классов шаблона; макет вне репозитория | `GET /events`, `GET /events/cities` | Каталог (D-056, D-061). Сверху вниз: поиск по названию и описанию (отправка через 300 мс после ввода); одним рядом чипы «Предстоящие» / «Прошедшие» (взаимоисключающие), «Сегодня», «На неделе», «Есть места», «Офлайн» / «Онлайн»; ниже — выпадающие фильтры «Город: …», «Категория: …», «Возраст: …» (любой, 0+, до 6+, до 12+, до 16+, до 18+) и «Сбросить». Выпадающий фильтр — свой компонент, а не нативный `<select>`: пилюля в стиле чипа (выбранное значение красит её как нажатый чип), под ней список `role="listbox"` со стрелками, Home/End, Enter/пробел и Escape (D-064). Сетка карточек: 3 колонки на ноутбуке, 1 на телефоне; в карточке категория и город (или «Онлайн»), название, дата и время в поясе события с подписью смещения (D-015), плашка «Осталось N мест» / «Лист ожидания» / «Регистрация закрыта» (у прошедших), плашка возраста; клик ведёт на `/e/:id`. Фильтры и поиск живут в query-параметрах адреса. «Сегодня» и «На неделе» включают «Предстоящие» и при «Прошедших» недоступны. «Показать ещё» подгружает следующую страницу по курсору. Пустой результат — «Ничего не нашлось» и «Сбросить фильтры» |
+| `/me` | рамки нет, из `S2-Code`, `c-table`, `c-badges`, `c-banners` | `POST /participant/verifications`, `POST …/confirm`, `GET /participant/me`, `PUT /participant/profile`, `GET /participant/registrations`, `POST /participant/logout` | Без сессии участника — форма входа на этой же странице: email → «Получить код» → поле кода с таймером повтора (как `S2-Code`) → страница; ошибки кода те же, что на `/e/:id`. `/me?next=<путь>`: после кода возврат на `next`, если это относительный путь приложения (начинается с одного `/`), иначе на `/me`. С сессией, но без профиля (`profile: null`) — вместо списка форма «Расскажите о себе»: имя, фамилия, дата рождения, предзаполнены из `lastData`, «Сохранить» → `PUT /participant/profile` (D-065); дата в будущем — ошибка под полем. С профилем — «Мои регистрации», над вкладками блок «Анна Иванова · 14 марта 1994» с кнопкой «Изменить»: на его месте та же форма, «Сохранить» / «Отмена». `409 profile_conflicts` — диалог «Регистрации будут отменены» со списком «Название — с N лет» и временем; «Сохранить и отменить» повторяет запрос с `cancelConflicts: true`, «Не сохранять» закрывает диалог, форма остаётся. После сохранения обновляются участник и список регистраций, а при непустом `cancelled` появляется уведомление «Отменены регистрации: …». Две вкладки: «Текущие» (событие не началось и регистрация не отменена, по возрастанию `starts_at`) и «Прошедшие» (событие началось или регистрация отменена, по убыванию `starts_at`). Строка: название, дата и время, город или «Онлайн», статус, «Открыть» → `/r/:token`. Статусы: `confirmed` до начала — «Место ваше · билет XXXX-XXXX»; `waitlisted` до начала — «Лист ожидания · №N»; `confirmed` с `checked_in_at` — «Пришли»; `confirmed` после начала без чекина — «Не отмечены на входе»; `waitlisted` после начала — «Место не освободилось» (D-034); `cancelled` — «Отменена». Пусто — «Вы пока никуда не зарегистрированы» и ссылка на каталог (D-057) |
+| `/e/:eventId` | `S1-Event` (s1a–s1d), `S2-Code` (s2a–s2d), `S3-Result` (s3a–s3c) | `GET /events/:id`, `POST …/verifications`, `POST /verifications/:id/confirm`, `POST /events/:id/registrations` | «Осталось N мест» / «Мест нет — вы встанете в лист ожидания» (D-026); ошибка возраста; ожидание кода с таймером повтора; неверный и истёкший код; результат «Место ваше» / «Вы №N в листе ожидания» / «Вы уже зарегистрированы» со ссылкой на `/r/:token`. Раскрывашка «Уже регистрировались?» — `lookup`. После начала: «Событие началось — регистрация закрыта», виден только `lookup` (D-034); рамки нет, собирается из `c-banners`. Показывает формат, город и адрес (у `offline`), категорию и возраст по шкале. Под сессией участника (D-058, D-065): при `myRegistration` вместо формы «Вы уже зарегистрированы» и ссылка на `/r/:token`. С профилем — вместо формы строка «Регистрируем: Анна Иванова, 14 марта 1994 · Изменить» (ссылка на `/me`) и одна кнопка «Зарегистрироваться» → `POST /events/:id/registrations` с пустым телом; возраст на день события считается и в браузере тем же правилом (D-008): младше `minAge` — кнопка выключена, подсказка «Регистрация с N лет на день события», а `422 below_min_age` от сервера показывается баннером. Без профиля — форма: email текстом, имя и дата рождения из `lastData`, данные уходят в теле и сервер создаёт профиль; `409 profile_required` (профиль пропал при открытой странице) перечитывает участника и возвращает форму с пояснением. Шага с кодом нет, результат — `S3-Result`. Для гостя — как раньше, плюс ссылка «Войти, чтобы регистрироваться без кода», она ведёт на `/me?next=/e/:id` |
 | `/r/:token` | `S4-MyReg` (s4a–s4e) | `GET /registrations/:token`, `POST …/cancel`, `POST …/corrections` | Подтверждена (билет), лист ожидания (номер), отменена, пришёл; диалог отказа. Форма «Исправить данные» и плашка «Заявка на рассмотрении» — без рамки, из `c-fields` и `c-banners` (D-031). После начала: «Событие началось» без кнопки отказа и формы, у листа ожидания «Событие началось, место не освободилось» (D-034). Подпись доски 04 «доступ по коду из письма» не переносим: доступ — по личной ссылке |
-| `/login`, `/signup` | `S5-Login` (s5a, s5b) | `POST /auth/login`, `POST /auth/signup` | После входа: `organizer` → `/organizer`, `support` → `/support` |
+| `/login`, `/signup` | `S5-Login` (s5a, s5b) | `POST /auth/login`, `POST /auth/signup` | После входа: `organizer` → `/organizer`, `support` → `/support`. `/` на `/login` больше не ведёт; в шапке есть ссылка на каталог (D-056) |
 | `/organizer` | `S6-Events` (s6a, s6b) | `GET /organizer/events` | Пустое состояние; у события — время и три счётчика |
-| `/organizer/events/new`, `/organizer/events/:id/edit` | `S7-EventForm` (s7a–s7c), `c-dialog` | `POST`/`PATCH /organizer/events…`, `DELETE /organizer/events/:id` | Пояс — нативный `<select>` по `Intl.supportedValuesOf('timeZone')`, по умолчанию пояс браузера (D-015, D-025). Диалог «N подтверждённых сверх лимита…» перед сохранением лимита ниже подтверждённых (D-032). После сохранения переноса или минимального возраста — предупреждение «N участников не проходят по возрасту» со ссылкой на список (D-017). Пока дата или время изменены и есть неотменённые регистрации — подсказка, что всем придёт письмо о переносе (D-016). После начала поля даты и лимита заблокированы (D-033). Кнопка «Удалить событие» с диалогом — только при `registrationCount = 0` (D-035); рамки нет |
+| `/organizer/events/new`, `/organizer/events/:id/edit` | `S7-EventForm` (s7a–s7c), `c-dialog` | `POST`/`PATCH /organizer/events…`, `DELETE /organizer/events/:id` | Пояс — нативный `<select>` по `Intl.supportedValuesOf('timeZone')`, по умолчанию пояс браузера (D-015, D-025). Поля (D-059, D-060): «Формат» — две радиокнопки без выбора по умолчанию; «Город» и «Адрес» — видны и обязательны только при «Офлайн»; «Категория» — `<select>`; «Возрастное ограничение» — `<select>` 0+ / 6+ / 12+ / 16+ / 18+ вместо числа. Диалог «N подтверждённых сверх лимита…» перед сохранением лимита ниже подтверждённых (D-032). После сохранения переноса или минимального возраста — предупреждение «N участников не проходят по возрасту» со ссылкой на список (D-017). Пока дата или время изменены и есть неотменённые регистрации — подсказка, что всем придёт письмо о переносе (D-016). После начала поля даты и лимита заблокированы (D-033). Кнопка «Удалить событие» с диалогом — только при `registrationCount = 0` (D-035); рамки нет |
 | `/organizer/events/:id` | `S8-EventAdmin` (s8a), `S8b-EventAdmin-States` (s8b, s8c) | `GET /organizer/events/:id`, `GET …/registrations`, `GET …/live`, `DELETE …/checkin/:registrationId` | Плашки «Подтверждено N из L» (сверх лимита — «N из L · K сверх лимита» предупреждающим цветом), «Лист ожидания N», «Пришло N из M» (D-021, D-032); ссылка для участников с копированием; список с фильтром по статусу; «Снять отметку» у отмеченных (D-023); «Нет связи». На 768 px таблица прокручивается горизонтально |
 | `/organizer/events/:id/checkin` | `S9-Checkin` (s9a–s9h) | `GET …/tickets/:code`, `POST …/checkin`, `GET …/live` | Поле в фокусе → Enter → карточка → «Пропустить» (Enter) → «Отмечен» → фокус в поле; жёлтое «Младше N лет на день события»; красные «Уже прошёл в ЧЧ:ММ», «Билет отменён», «Билет не найден»; строка «Пришло N из M» (D-023) |
 | `/support` | рамки нет, из `c-table`, `c-badges`, `c-buttons`, `c-dialog` | `GET /support/corrections`, `POST …/accept`, `POST …/reject` | Очередь «было → стало», предупреждение «Будет младше N лет на день события», счётчик ожидающих; отклонение с необязательной причиной (D-031) |
 | `/support/events`, `/support/events/:id` | рамки нет, из `S6-Events` и `S8-EventAdmin` | `GET /support/events`, `GET /support/events/:id/registrations` | Только чтение: список событий с email организатора; плашки и список участников без ссылки, правки, чекина и «Снять отметку». Вкладки «Заявки / События» |
+
+**Шапка** — одна на всех экранах, включая шаги кода и результата на `/e/:id`, загрузку, 404, `/login`, `/signup`, кабинеты организатора и поддержки (D-066). Без шапки только экран чекина (D-023). Справа (D-057):
+
+| Кто | Справа |
+|---|---|
+| гость | «Мои регистрации», «Организаторам» (акцентная, ведёт на `/login`) |
+| участник | «Мои регистрации», `email · Выйти` |
+| организатор | «Мои регистрации», «Мои события» (акцентная, на `/organizer`), `email · Выйти` |
+| поддержка | «Мои регистрации», «Поддержка» (акцентная, на `/support`), `email · Выйти` |
+
+«Мои регистрации» видна всегда. Если есть обе сессии, участника и организатора, показываются обе пары «email · Выйти», каждая выходит из своей сессии.
 
 Название «Явка» и домен `yavka.example` из шаблона не используем: продукт называется «Регистрация на мероприятия», ссылки строятся от `PUBLIC_URL`.
 
@@ -500,11 +598,11 @@ ESLint `no-restricted-imports` в `apps/web`: из `apps/api` разрешены
 
 **Демо-сид** (D-010, D-018, D-030). Даты считаются от момента запуска.
 - `demo@example.com` / `demo` — события:
-  - заполненное, с листом ожидания;
-  - начинается меньше чем через сутки, с регистрациями, подтверждёнными больше чем за сутки до начала: после сида придут напоминания; одна регистрация подтверждена час назад — ей напоминания нет (D-019);
-  - прошедшее, с чекинами;
-  - с минимальным возрастом.
-- `demo2@example.com` / `demo` — своё событие, для проверки изоляции.
+  - заполненное, с листом ожидания (митап, онлайн, 12+);
+  - начинается меньше чем через сутки, с регистрациями, подтверждёнными больше чем за сутки до начала: после сида придут напоминания; одна регистрация подтверждена час назад — ей напоминания нет (D-019) (воркшоп, Новосибирск);
+  - прошедшее, с чекинами (конференция, Новосибирск);
+  - с минимальным возрастом (квиз 18+, Москва).
+- `demo2@example.com` / `demo` — своё событие, для проверки изоляции (лекция, Новосибирск).
 - `support@example.com` / `support` — поддержка, одна ожидающая заявка на исправление (опечатка в фамилии, событие с минимальным возрастом).
 
 Регистрации пишутся прямо в БД, без кодов и писем; функция — `apps/api/src/seed/demo.ts`, её проверяет `demo-seed.test.ts`. `db:seed` и `db:reset` сначала применяют миграции, поэтому работают и до первого старта API.

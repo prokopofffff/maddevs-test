@@ -71,6 +71,9 @@ export async function seedDemo(db: Db, now: Date): Promise<SeedResult> {
       startsAt: dayAt(7, "19:00", "Asia/Novosibirsk"),
       timezone: "Asia/Novosibirsk",
       seatLimit: 5,
+      category: "meetup",
+      format: "online",
+      minAge: 12,
     });
     for (let i = 0; i < 5; i++) await confirmed(tx, full.id, person(i), at(-10 * DAY + i * HOUR));
     for (let i = 5; i < 8; i++) await waitlisted(tx, full.id, person(i), at(-5 * DAY + i * HOUR));
@@ -82,6 +85,10 @@ export async function seedDemo(db: Db, now: Date): Promise<SeedResult> {
       startsAt: new Date(Math.ceil(at(5 * HOUR).getTime() / HOUR) * HOUR),
       timezone: "Asia/Novosibirsk",
       seatLimit: 20,
+      category: "workshop",
+      format: "offline",
+      city: "Новосибирск",
+      address: "ул. Ленина, 12, коворкинг «Точка»",
     });
     for (let i = 0; i < 3; i++) await confirmed(tx, soon.id, person(i), at(-3 * DAY + i * HOUR));
     await confirmed(tx, soon.id, person(3), at(-HOUR));
@@ -93,6 +100,10 @@ export async function seedDemo(db: Db, now: Date): Promise<SeedResult> {
       startsAt: dayAt(-2, "10:00", "Asia/Novosibirsk"),
       timezone: "Asia/Novosibirsk",
       seatLimit: 30,
+      category: "conference",
+      format: "offline",
+      city: "Новосибирск",
+      address: "Технопарк, ул. Николаева, 12",
     });
     for (let i = 0; i < 6; i++) {
       const r = await confirmed(tx, past.id, person(i), at(-20 * DAY + i * HOUR));
@@ -116,6 +127,10 @@ export async function seedDemo(db: Db, now: Date): Promise<SeedResult> {
       startsAt: dayAt(14, "21:00", "Europe/Moscow"),
       timezone: "Europe/Moscow",
       seatLimit: 40,
+      category: "game",
+      format: "offline",
+      city: "Москва",
+      address: "Бар «Синица», Покровка, 17",
       minAge: 18,
     });
     await confirmed(tx, adults.id, person(0), at(-4 * DAY));
@@ -140,6 +155,10 @@ export async function seedDemo(db: Db, now: Date): Promise<SeedResult> {
       startsAt: dayAt(10, "19:00", "Asia/Novosibirsk"),
       timezone: "Asia/Novosibirsk",
       seatLimit: 15,
+      category: "lecture",
+      format: "offline",
+      city: "Новосибирск",
+      address: "НГУ, Пирогова, 1, ауд. 313",
     });
     await confirmed(tx, other.id, person(2), at(-6 * DAY));
     await confirmed(tx, other.id, person(9), at(-6 * DAY + HOUR));

@@ -13,14 +13,18 @@ async function messagesTo(to: string): Promise<Summary[]> {
   return (await res.json()).messages;
 }
 
-/** Ждёт `count`-е письмо с кодом подтверждения и возвращает код из темы. */
-export async function codeFromMail(to: string, count = 1) {
+/**
+ * Ждёт `count`-е письмо с кодом и возвращает код из темы. `subject` — начало темы: «Код подтверждения» у регистрации
+ * и «потерял письмо», «Код для входа» у входа участника на `/me`.
+ */
+export async function codeFromMail(to: string, count = 1, subject = "Код подтверждения") {
+  const pattern = new RegExp(`^${subject}: (\\d{6})$`);
   let codes: string[] = [];
   await expect
     .poll(
       async () => {
         const subjects = (await messagesTo(to)).map((m) => m.Subject);
-        codes = subjects.flatMap((s) => s.match(/^Код подтверждения: (\d{6})$/)?.[1] ?? []);
+        codes = subjects.flatMap((s) => s.match(pattern)?.[1] ?? []);
         return codes.length;
       },
       { message: `письмо с кодом №${count} для ${to}`, timeout: 10_000 },

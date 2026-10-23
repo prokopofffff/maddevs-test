@@ -44,8 +44,29 @@ describe("Демо-сид (D-010)", () => {
     const past = list.find((e) => e.started);
     expect(past?.counts.checkedIn).toBeGreaterThan(0);
 
-    // С минимальным возрастом.
-    expect(details.filter((d) => d.event.minAge !== null)).toHaveLength(1);
+    // С минимальным возрастом: квиз 18+ и митап 12+ (D-060).
+    expect(details.filter((d) => d.event.minAge > 0).map((d) => d.event.minAge).sort()).toEqual([12, 18]);
+  });
+
+  it("публичный каталог после сида: четыре предстоящих, одно прошедшее, города Москва и Новосибирск, митап онлайн (D-056)", async () => {
+    const t = testApp();
+    await seedDemo(testDb(), t.clock.now());
+    const guest = t.client();
+
+    const upcoming = (await guest.get("/api/events")).body.events as any[];
+    const past = (await guest.get("/api/events?when=past")).body.events as any[];
+    const cities = (await guest.get("/api/events/cities")).body.cities;
+
+    // Событие второго организатора («Лекция») в каталоге тоже: каталог не режет по организатору.
+    expect(upcoming.map((e) => e.title).sort()).toEqual([
+      "Воркшоп: формы на React без боли",
+      "Лекция: как устроены очереди",
+      "Митап: Postgres под нагрузкой",
+      "Ночной квиз 18+",
+    ]);
+    expect(past.map((e) => e.title)).toEqual(["Конференция «Бэкенд в Сибири»"]);
+    expect(cities).toEqual(["Москва", "Новосибирск"]);
+    expect(upcoming.find((e) => e.title.startsWith("Митап"))).toMatchObject({ format: "online", city: null });
   });
 
   it("после сида проход циклов присылает напоминания подтверждённым заранее, и никаких других писем", async () => {

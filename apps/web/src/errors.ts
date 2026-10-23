@@ -8,6 +8,7 @@ const messages: Record<string, string> = {
   validation_failed: "Проверьте поля формы",
   not_found: "Такой страницы нет",
   unauthorized: "Войдите, чтобы продолжить",
+  profile_required: "Профиль не найден — заполните данные ниже",
   registration_closed: "Событие началось — регистрация закрыта",
   code_expired: "Код истёк — запросите новый",
   code_attempts_exceeded: "Попытки закончились — запросите новый код",

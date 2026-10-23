@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { testDb } from "../../setup/worker-db.ts";
 import { openLive } from "../../support/live.ts";
-import { checkin, signUpOrganizer, ticketCard } from "../../support/organizer.ts";
+import { checkin, eventInput, signUpOrganizer, ticketCard } from "../../support/organizer.ts";
 import { cancel, confirmedTicket, createEvent, participant, register } from "../../support/participant.ts";
 import { testApp, type Client } from "../../support/test-app.ts";
 
@@ -64,13 +64,10 @@ describe("R5 — однократный чекин", () => {
   it("R5: код другого события и несуществующий код — «билет не найден»", async () => {
     const t = testApp();
     const { eventId: other, organizer } = await createEvent(t);
-    const res = await organizer.post("/api/organizer/events", {
-      title: "Второй митап",
-      description: "",
-      startsLocal: "2026-11-27T19:00",
-      timezone: "Asia/Novosibirsk",
-      limit: 50,
-    });
+    const res = await organizer.post(
+      "/api/organizer/events",
+      eventInput({ title: "Второй митап", description: "", startsLocal: "2026-11-27T19:00" }),
+    );
     const eventId = res.body.event.id as string;
     const { ticketCode } = await confirmedTicket(t, other);
 

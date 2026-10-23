@@ -5,6 +5,7 @@ import type { Env } from "./http.ts";
 import type { Live } from "./live.ts";
 import { authRoutes } from "./routes/auth.ts";
 import { organizerRoutes } from "./routes/organizer.ts";
+import { participantRoutes } from "./routes/participant.ts";
 import { publicRoutes } from "./routes/public.ts";
 import { supportRoutes } from "./routes/support.ts";
 import { apiError } from "./http.ts";
@@ -43,6 +44,10 @@ export function createApp({ db, clock, config, live, outbox = noWake }: AppDeps)
     .use("/auth/login", limits.auth)
     .use("/events/:id/verifications", limits.public)
     .use("/verifications/:id/confirm", limits.public)
+    .use("/events/:id/registrations", limits.public)
+    .use("/participant/profile", limits.public)
+    .use("/participant/verifications", limits.public)
+    .use("/participant/verifications/:id/confirm", limits.public)
     .use("/registrations/:token/cancel", limits.public)
     .use("/registrations/:token/corrections", limits.public)
     .use(async (c, next) => {
@@ -56,6 +61,7 @@ export function createApp({ db, clock, config, live, outbox = noWake }: AppDeps)
     .route("/auth", authRoutes)
     .route("/organizer", organizerRoutes)
     .route("/support", supportRoutes)
+    .route("/participant", participantRoutes)
     .route("/", publicRoutes)
     // `notFound` вложенного приложения Hono не вызывает: неизвестный маршрут API ловим явно.
     .all("*", (c) => apiError(c, 404, "not_found"));
